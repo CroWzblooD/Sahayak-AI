@@ -1,0 +1,22 @@
+{
+    "cli": {
+        "version": ">= 13.2.3"
+    },
+    "build": {
+        "preview": {
+            "android": {
+                "buildType": "apk"
+            },
+            "env": {
+                "DATABASE_URL=postgresql":"//neondb_owner:npg_oQvbL1CXirV0@ep-wandering-mouse-a4jugbq5-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require",
+                "EXPO_PUBLIC_GEMINI_API_KEY":"AIzaSyA-e3uivpNa_3xqh8-W9gyA6SdVSM_4KFw",
+                "EXPO_PUBLIC_GOOGLE_SPEECH_API_KEY":"AIzaSyBE0SIN-Vm73ntz-_i36EvAo0AmDVTNno8"
+            }
+        },
+        "development": {
+            "developmentClient": true,
+            "distribution": "internal"
+        },
+        "production": {}
+    }
+}

@@ -1,0 +1,232 @@
+{
+  "categories": [
+    {
+      "id": "agriculture",
+      "title": "Agriculture Schemes",
+      "icon": "🌾",
+      "schemes": [
+        {
+          "id": "pm-kisan",
+          "name": "PM-KISAN",
+          "description": "Direct income support to farmers",
+          "eligibilityCriteria": [
+            "Small and marginal farmers",
+            "Own cultivable land",
+            "Valid identification documents"
+          ],
+          "benefits": [
+            "₹6000 per year direct transfer",
+            "Paid in three installments"
+          ]
+        },
+        {
+          "id": "pmfby",
+          "name": "Pradhan Mantri Fasal Bima Yojana",
+          "description": "Crop insurance scheme for farmers",
+          "eligibilityCriteria": [
+            "All farmers including sharecroppers",
+            "Growing notified crops"
+          ],
+          "benefits": [
+            "Insurance coverage for crop failure",
+            "Stabilization of farm income"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "education",
+      "title": "Education Schemes",
+      "icon": "📚",
+      "schemes": [
+        {
+          "id": "post-matric",
+          "name": "Post Matric Scholarship",
+          "description": "Financial assistance for higher education",
+          "eligibilityCriteria": [
+            "Family income below specified limit",
+            "Regular students of class 11th and above"
+          ],
+          "benefits": [
+            "Full tuition fee reimbursement",
+            "Maintenance allowance"
+          ]
+        },
+        {
+          "id": "nsp",
+          "name": "National Scholarship Portal",
+          "description": "Single window for all scholarship schemes",
+          "eligibilityCriteria": [
+            "Based on specific scheme requirements",
+            "Valid academic credentials"
+          ],
+          "benefits": [
+            "Multiple scholarship opportunities",
+            "Direct benefit transfer"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "health",
+      "title": "Health Schemes",
+      "icon": "🏥",
+      "schemes": [
+        {
+          "id": "pmjay",
+          "name": "Ayushman Bharat PM-JAY",
+          "description": "Health insurance for poor families",
+          "eligibilityCriteria": [
+            "SECC database listed families",
+            "No existing health insurance"
+          ],
+          "benefits": [
+            "Coverage up to ₹5 lakhs per family",
+            "Cashless treatment"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "housing",
+      "title": "Housing Schemes",
+      "icon": "🏠",
+      "schemes": [
+        {
+          "id": "pmay",
+          "name": "Pradhan Mantri Awas Yojana",
+          "description": "Housing for all initiative",
+          "eligibilityCriteria": [
+            "No owned pucca house",
+            "Income within specified limits"
+          ],
+          "benefits": [
+            "Subsidized home loans",
+            "Direct financial assistance"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "women",
+      "title": "Women Empowerment",
+      "icon": "👩",
+      "schemes": [
+        {
+          "id": "bbbp",
+          "name": "Beti Bachao Beti Padhao",
+          "description": "Girl child education and protection",
+          "eligibilityCriteria": [
+            "Girl children",
+            "Families with girl child"
+          ],
+          "benefits": [
+            "Educational support",
+            "Financial incentives"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "skill",
+      "title": "Skill Development",
+      "icon": "💪",
+      "schemes": [
+        {
+          "id": "pmkvy",
+          "name": "Pradhan Mantri Kaushal Vikas Yojana",
+          "description": "Skill training for youth",
+          "eligibilityCriteria": [
+            "Age 15-45 years",
+            "Indian nationality"
+          ],
+          "benefits": [
+            "Free skill training",
+            "Certification",
+            "Placement assistance"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "msme",
+      "title": "MSME Support",
+      "icon": "🏭",
+      "schemes": [
+        {
+          "id": "mudra",
+          "name": "Pradhan Mantri MUDRA Yojana",
+          "description": "Loans for small businesses",
+          "eligibilityCriteria": [
+            "Small/Micro business owners",
+            "Valid business proposal"
+          ],
+          "benefits": [
+            "Loans up to ₹10 lakhs",
+            "No collateral required"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "social-security",
+      "title": "Social Security",
+      "icon": "🛡️",
+      "schemes": [
+        {
+          "id": "pmsby",
+          "name": "PM Suraksha Bima Yojana",
+          "description": "Accident insurance scheme",
+          "eligibilityCriteria": [
+            "Age 18-70 years",
+            "Bank account holder"
+          ],
+          "benefits": [
+            "₹2 lakh accident coverage",
+            "Low premium of ₹12 per year"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rural",
+      "title": "Rural Development",
+      "icon": "🌱",
+      "schemes": [
+        {
+          "id": "mgnrega",
+          "name": "MGNREGA",
+          "description": "Rural employment guarantee",
+          "eligibilityCriteria": [
+            "Rural household members",
+            "Willing to do unskilled work"
+          ],
+          "benefits": [
+            "100 days guaranteed employment",
+            "Fixed daily wages"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "digital",
+      "title": "Digital India",
+      "icon": "💻",
+      "schemes": [
+        {
+          "id": "digi-seva",
+          "name": "Digital Seva",
+          "description": "Digital service delivery",
+          "eligibilityCriteria": [
+            "All citizens",
+            "Basic digital literacy"
+          ],
+          "benefits": [
+            "Online government services",
+            "Digital skill development"
+          ]
+        }
+      ]
+    }
+  ]
+} 

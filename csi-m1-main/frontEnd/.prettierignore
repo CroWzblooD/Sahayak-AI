@@ -1,0 +1,14 @@
+/.vscode
+/node_modules
+./dist
+/.git
+/.expo
+/.gitignore
+expo-env.d.ts
+tsconfig.json
+tailwind.config.js
+babel.config.ts
+app.t.ts
+app.json
+/android
+/ios

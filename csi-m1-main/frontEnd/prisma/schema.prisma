@@ -1,0 +1,42 @@
+ generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  phone         String?   @unique
+  password      String?
+  isOnboarded   Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  userProfile   UserProfile?
+}
+
+model UserProfile {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id])
+  age           Int?
+  occupation    String?
+  annualIncome  Float?
+  city          String?
+  education     String?
+  category      String?   // General/OBC/SC/ST
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model OTP {
+  id            String    @id @default(cuid())
+  phone         String
+  otp           String
+  expiresAt     DateTime
+  createdAt     DateTime  @default(now())
+}
