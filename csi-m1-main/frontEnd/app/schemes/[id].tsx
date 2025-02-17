@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, StyleSheet, TextInput, Modal } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, StyleSheet, TextInput, Modal, Linking, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { THEME_COLORS } from '@/constants/Colors';
 import { fetchSchemesByCategory } from '@/data/schemes';
-import { Button, XStack } from 'tamagui';
-import { MaterialIcons } from '@expo/vector-icons';
+import { Button, XStack, YStack } from 'tamagui';
+import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { aiService } from '@/services/aiService';
 import type { Scheme } from '@/types/schemes';
 
@@ -15,8 +16,10 @@ export default function SchemeDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedScheme, setSelectedScheme] = useState<Scheme | null>(null);
   const [showEligibility, setShowEligibility] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const [userDetails, setUserDetails] = useState('');
   const [analysis, setAnalysis] = useState('');
+  const [guide, setGuide] = useState('');
 
   useEffect(() => {
     async function loadSchemes() {
@@ -37,7 +40,7 @@ export default function SchemeDetailsScreen() {
     setLoading(true);
     try {
       const response = await aiService.getTextResponse(`
-        For the scheme "${scheme.name}":
+        Analyze eligibility for scheme "${scheme.name}":
         
         User Details: ${userDetails}
         
@@ -45,11 +48,11 @@ export default function SchemeDetailsScreen() {
         - Eligibility: ${scheme.eligibilityCriteria.join(', ')}
         - Benefits: ${scheme.benefits.join(', ')}
         
-        Please provide:
+        Provide:
         1. Detailed eligibility analysis
         2. Required documents
-        3. Application process
-        4. Next steps
+        3. Next steps if eligible
+        4. Alternative options if not eligible
         
         Format with clear sections and bullet points.
       `);
@@ -60,6 +63,102 @@ export default function SchemeDetailsScreen() {
       setLoading(false);
     }
   };
+
+  const generateGuide = async (scheme: Scheme) => {
+    setLoading(true);
+    try {
+      const response = await aiService.getTextResponse(`
+        Create a comprehensive guide for "${scheme.name}":
+
+        Scheme Details:
+        - Description: ${scheme.description}
+        - Benefits: ${scheme.benefits.join(', ')}
+        - Eligibility: ${scheme.eligibilityCriteria.join(', ')}
+
+        Provide:
+        1. Step-by-step application process
+        2. Required documents with details
+        3. Important deadlines and timelines
+        4. Application submission methods
+        5. Contact information and helpline
+        6. Common mistakes to avoid
+        7. Tips for successful application
+        8. Post-application follow-up steps
+        9. Relevant links and resources
+        
+        Format with clear sections, numbering, and bullet points.
+      `);
+      setGuide(response);
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderSchemeCard = (scheme: Scheme) => (
+    <View key={scheme.id} style={styles.schemeCard}>
+      <View style={styles.schemeHeader}>
+        <View style={styles.schemeTitleContainer}>
+          <MaterialIcons name="policy" size={24} color={THEME_COLORS.primary} />
+          <Text style={styles.schemeTitle}>{scheme.name}</Text>
+        </View>
+        <Text style={styles.schemeDescription}>{scheme.description}</Text>
+      </View>
+
+      <View style={styles.infoSection}>
+        <View style={styles.sectionHeader}>
+          <MaterialIcons name="check-circle" size={20} color={THEME_COLORS.primary} />
+          <Text style={styles.sectionTitle}>Eligibility Criteria</Text>
+        </View>
+        {scheme.eligibilityCriteria.map((item, index) => (
+          <View key={index} style={styles.bulletPoint}>
+            <MaterialIcons name="arrow-right" size={16} color={THEME_COLORS.primary} />
+            <Text style={styles.bulletText}>{item}</Text>
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.infoSection}>
+        <View style={styles.sectionHeader}>
+          <MaterialIcons name="star" size={20} color={THEME_COLORS.primary} />
+          <Text style={styles.sectionTitle}>Benefits</Text>
+        </View>
+        {scheme.benefits.map((item, index) => (
+          <View key={index} style={styles.bulletPoint}>
+            <MaterialIcons name="arrow-right" size={16} color={THEME_COLORS.primary} />
+            <Text style={styles.bulletText}>{item}</Text>
+          </View>
+        ))}
+      </View>
+
+      <XStack space="$3" marginTop={16}>
+        <Button
+          flex={1}
+          backgroundColor={THEME_COLORS.primary}
+          onPress={() => {
+            setSelectedScheme(scheme);
+            setShowEligibility(true);
+          }}
+          icon={<MaterialIcons name="person-search" size={20} color="white" />}
+        >
+          Check Eligibility
+        </Button>
+        <Button
+          flex={1}
+          backgroundColor={THEME_COLORS.secondary}
+          onPress={() => {
+            setSelectedScheme(scheme);
+            generateGuide(scheme);
+            setShowGuide(true);
+          }}
+          icon={<MaterialIcons name="help" size={20} color="white" />}
+        >
+          Get Guide
+        </Button>
+      </XStack>
+    </View>
+  );
 
   if (loading) {
     return (
@@ -76,65 +175,42 @@ export default function SchemeDetailsScreen() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {schemes.map((scheme) => (
-          <View key={scheme.id} style={styles.schemeCard}>
-            <Text style={styles.schemeTitle}>{scheme.name}</Text>
-            <Text style={styles.schemeDescription}>{scheme.description}</Text>
-            
-            <View style={styles.infoSection}>
-              <MaterialIcons name="check-circle" size={20} color={THEME_COLORS.primary} />
-              <Text style={styles.sectionTitle}>Eligibility</Text>
-            </View>
-            {scheme.eligibilityCriteria.map((item, index) => (
-              <Text key={index} style={styles.bulletPoint}>• {item}</Text>
-            ))}
+        {schemes.map(renderSchemeCard)}
+      </ScrollView>
 
-            <View style={styles.infoSection}>
-              <MaterialIcons name="star" size={20} color={THEME_COLORS.primary} />
-              <Text style={styles.sectionTitle}>Benefits</Text>
-            </View>
-            {scheme.benefits.map((item, index) => (
-              <Text key={index} style={styles.bulletPoint}>• {item}</Text>
-            ))}
-
-            <Button
-              icon={<MaterialIcons name="person-search" size={20} color="white" />}
-              backgroundColor={THEME_COLORS.primary}
-              onPress={() => {
-                setSelectedScheme(scheme);
-                setShowEligibility(true);
-              }}
-              marginTop={16}
-            >
-              Check Your Eligibility
-            </Button>
-          </View>
-        ))}
-
-        {/* Eligibility Check Modal */}
-        <Modal
-          visible={showEligibility}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setShowEligibility(false)}
-        >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalContent}>
+      {/* Eligibility Check Modal */}
+      <Modal
+        visible={showEligibility}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowEligibility(false)}
+      >
+        <BlurView intensity={100} style={styles.modalContainer}>
+          <SafeAreaView style={styles.modalContent}>
+            <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 Check Eligibility for {selectedScheme?.name}
               </Text>
-              
+              <TouchableOpacity 
+                onPress={() => setShowEligibility(false)}
+                style={styles.closeButton}
+              >
+                <MaterialIcons name="close" size={24} color="#000" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalScroll}>
               <TextInput
                 style={styles.input}
                 multiline
                 numberOfLines={4}
-                placeholder="Enter your details to check eligibility..."
+                placeholder="Enter your details (age, income, occupation, etc.) to check eligibility..."
                 value={userDetails}
                 onChangeText={setUserDetails}
                 placeholderTextColor="#666"
               />
 
-              <XStack space="$3">
+              <XStack space="$3" marginVertical={16}>
                 <Button
                   flex={1}
                   backgroundColor="#666"
@@ -145,22 +221,59 @@ export default function SchemeDetailsScreen() {
                 <Button
                   flex={1}
                   backgroundColor={THEME_COLORS.primary}
-                  onPress={() => checkEligibility(selectedScheme)}
+                  onPress={() => checkEligibility(selectedScheme!)}
                   disabled={loading}
                 >
                   {loading ? 'Analyzing...' : 'Check Eligibility'}
                 </Button>
               </XStack>
 
-              {analysis ? (
-                <ScrollView style={styles.analysisContainer}>
+              {analysis && (
+                <View style={styles.analysisContainer}>
                   <Text style={styles.analysisText}>{analysis}</Text>
-                </ScrollView>
-              ) : null}
+                </View>
+              )}
+            </ScrollView>
+          </SafeAreaView>
+        </BlurView>
+      </Modal>
+
+      {/* Scheme Guide Modal */}
+      <Modal
+        visible={showGuide}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowGuide(false)}
+      >
+        <BlurView intensity={100} style={styles.modalContainer}>
+          <SafeAreaView style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                Application Guide: {selectedScheme?.name}
+              </Text>
+              <TouchableOpacity 
+                onPress={() => setShowGuide(false)}
+                style={styles.closeButton}
+              >
+                <MaterialIcons name="close" size={24} color="#000" />
+              </TouchableOpacity>
             </View>
-          </View>
-        </Modal>
-      </ScrollView>
+
+            <ScrollView style={styles.modalScroll}>
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color={THEME_COLORS.primary} />
+                  <Text style={styles.loadingText}>Generating guide...</Text>
+                </View>
+              ) : (
+                <View style={styles.guideContainer}>
+                  <Text style={styles.guideText}>{guide}</Text>
+                </View>
+              )}
+            </ScrollView>
+          </SafeAreaView>
+        </BlurView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -187,34 +300,45 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  schemeHeader: {
+    marginBottom: 16,
+  },
+  schemeTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   schemeTitle: {
     fontSize: 18,
     fontWeight: '600',
-    marginBottom: 8,
+    marginLeft: 8,
     color: THEME_COLORS.text,
   },
   schemeDescription: {
     fontSize: 14,
     color: THEME_COLORS.lightText,
+  },
+  infoSection: {
     marginBottom: 16,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    marginTop: 12,
-    marginBottom: 8,
+    marginLeft: 8,
     color: THEME_COLORS.text,
   },
   bulletPoint: {
-    fontSize: 14,
-    color: THEME_COLORS.text,
-    marginLeft: 8,
-    marginBottom: 4,
-  },
-  infoSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
+  },
+  bulletText: {
+    fontSize: 14,
+    color: THEME_COLORS.text,
   },
   modalContainer: {
     flex: 1,
@@ -228,10 +352,21 @@ const styles = StyleSheet.create({
     padding: 20,
     maxHeight: '80%',
   },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
   modalTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 8,
+  },
+  closeButton: {
+    padding: 8,
+  },
+  modalScroll: {
+    flex: 1,
   },
   input: {
     borderWidth: 1,
@@ -249,6 +384,23 @@ const styles = StyleSheet.create({
     maxHeight: 300,
   },
   analysisText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  guideContainer: {
+    flex: 1,
+  },
+  guideText: {
     fontSize: 14,
     lineHeight: 20,
   },

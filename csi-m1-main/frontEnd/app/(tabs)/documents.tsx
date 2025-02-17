@@ -1,10 +1,17 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable, Image, StyleSheet, TextInput, SafeAreaView, Modal, Platform, StatusBar, ActivityIndicator, Alert } from 'react-native';
-import { FontAwesome5, MaterialIcons, Ionicons } from '@expo/vector-icons';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, ScrollView, Pressable, Image, StyleSheet, TextInput, SafeAreaView, Modal, Platform, StatusBar, ActivityIndicator, Alert, Dimensions, FlatList, Linking } from 'react-native';
+import { FontAwesome5, MaterialIcons, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { THEME_COLORS } from '@/constants/Colors';
 import { Card } from 'tamagui';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
+import { Video } from 'expo-av';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import DigiLockerSection from '@/components/DigiLockerSection';
+
+const { width } = Dimensions.get('window');
+const COLUMN_WIDTH = width / 2 - 24;
 
 // Document type definition
 interface Document {
@@ -330,207 +337,491 @@ const detectDocumentType = async (file: File): Promise<string> => {
   // Implementation for document type detection
 };
 
+interface SchemeVideo {
+  id: string;
+  title: string;
+  thumbnail: string;
+  channelTitle: string;
+  views: string;
+  publishedAt: string;
+  videoUrl: string;
+}
+
+const DOCUMENT_TYPES = [
+  {
+    id: 'identity',
+    title: 'Identity Proof',
+    icon: 'card-account-details',
+    required: ['Aadhaar Card', 'PAN Card', 'Voter ID'],
+  },
+  {
+    id: 'address',
+    title: 'Address Proof',
+    icon: 'home',
+    required: ['Utility Bill', 'Rent Agreement', 'Passport'],
+  },
+  {
+    id: 'income',
+    title: 'Income Proof',
+    icon: 'currency-inr',
+    required: ['Salary Slip', 'ITR', 'Form 16'],
+  },
+  {
+    id: 'other',
+    title: 'Other Documents',
+    icon: 'file-document',
+    required: ['Caste Certificate', 'Disability Certificate'],
+  },
+];
+
+const YOUTUBE_API_KEY = 'AIzaSyBE0SIN-Vm73ntz-_i36EvAo0AmDVTNno8';
+
+interface NewsArticle {
+  title: string;
+  description: string;
+  url: string;
+  urlToImage: string;
+  publishedAt: string;
+  source: {
+    name: string;
+  };
+}
+
 export default function DocumentsScreen() {
+  const [activeSection, setActiveSection] = useState<'documents' | 'videos'>('documents');
+  const [activeVideoTab, setActiveVideoTab] = useState<'shorts' | 'videos'>('shorts');
+  const [activeNewsTab, setActiveNewsTab] = useState<'news' | 'videos'>('news');
+  const [selectedLanguage, setSelectedLanguage] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [loading, setLoading] = useState(false);
+  const [videos, setVideos] = useState<SchemeVideo[]>([]);
   const [uploadModalVisible, setUploadModalVisible] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [viewModalVisible, setViewModalVisible] = useState(false);
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [selectedDocType, setSelectedDocType] = useState<string | null>(null);
+  const [pageToken, setPageToken] = useState<string | null>(null);
+  const [searchText, setSearchText] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([]);
+  const [newsPage, setNewsPage] = useState(1);
+  const [loadingNews, setLoadingNews] = useState(false);
 
-  // Sample documents data
-  const documentsData: Document[] = [
-    {
-      id: '1',
-      type: 'identity',
-      name: 'Aadhaar Card',
-      status: 'verified',
-      lastUpdated: '2024-02-15',
-      verificationId: 'VER123456'
-    },
-    {
-      id: '2',
-      type: 'identity',
-      name: 'PAN Card',
-      status: 'verified',
-      lastUpdated: '2024-01-20',
-      verificationId: 'VER789012'
-    },
-    {
-      id: '3',
-      type: 'address',
-      name: 'Electricity Bill',
-      status: 'pending',
-      lastUpdated: '2024-02-28'
-    },
-    // Add more sample documents
+  const languages = [
+    { id: 'all', label: 'All' },
+    { id: 'en', label: 'English' },
+    { id: 'hi', label: 'Hindi' },
   ];
 
-  // Filter documents based on search and category
-  const filteredDocuments = documentsData.filter(doc => 
-    (selectedCategory === 'all' || doc.type === selectedCategory) &&
-    doc.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const categories = [
+    { id: 'all', label: 'All' },
+    { id: 'central', label: 'Central Schemes' },
+    { id: 'state', label: 'State Schemes' },
+    { id: 'education', label: 'Education' },
+    { id: 'health', label: 'Health' },
+    { id: 'agriculture', label: 'Agriculture' },
+  ];
 
-  const handleDocumentUpload = async (newDocument: Document) => {
+  useEffect(() => {
+    if (activeSection === 'videos') {
+      if (activeNewsTab === 'news') {
+        fetchNews();
+      } else {
+        fetchVideos();
+      }
+    }
+  }, [activeSection, activeNewsTab, selectedLanguage]);
+
+  const fetchVideos = async (nextPage?: boolean) => {
     try {
-      // Here you would typically send the document to your backend
-      // For now, we'll just add it to the local state
-      setDocuments(prev => [...prev, newDocument]);
+      if (!nextPage) setLoading(true);
+      
+      const searchQuery = encodeURIComponent(
+        `${searchText || 'government schemes india'} ${selectedCategory !== 'all' ? selectedCategory : ''} ${activeVideoTab === 'shorts' ? 'shorts' : ''}`
+      );
+      
+      const apiUrl = `https://youtube.googleapis.com/youtube/v3/search?` +
+        `part=snippet` +
+        `&maxResults=20` +
+        `&q=${searchQuery}` +
+        `&type=video` +
+        `&key=${YOUTUBE_API_KEY}` +
+        (selectedLanguage !== 'all' ? `&relevanceLanguage=${selectedLanguage}` : '') +
+        (nextPage && pageToken ? `&pageToken=${pageToken}` : '');
+
+      const response = await fetch(apiUrl);
+      const data = await response.json();
+      
+      if (!data.items) {
+        throw new Error('No videos found');
+      }
+
+      setPageToken(data.nextPageToken || null);
+
+      const transformedVideos = data.items.map((item: any) => ({
+        id: item.id.videoId,
+        title: item.snippet.title,
+        thumbnail: item.snippet.thumbnails.high?.url || item.snippet.thumbnails.default?.url,
+        channelTitle: item.snippet.channelTitle,
+        publishedAt: new Date(item.snippet.publishedAt).toLocaleDateString(),
+        videoUrl: `https://www.youtube.com/watch?v=${item.id.videoId}`,
+      }));
+
+      setVideos(prevVideos => 
+        nextPage ? [...prevVideos, ...transformedVideos] : transformedVideos
+      );
     } catch (error) {
-      console.error('Error saving document:', error);
+      console.error('Error fetching videos:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Categories with icons
-  const categories = [
-    { id: 'all', label: 'All', icon: 'apps' },
-    { id: 'identity', label: 'Identity', icon: 'id-card' },
-    { id: 'address', label: 'Address', icon: 'home' },
-    { id: 'income', label: 'Income', icon: 'money-bill' }
-  ];
+  const fetchNews = async (nextPage?: boolean) => {
+    try {
+      if (!nextPage) setLoadingNews(true);
+      
+      // Basic scheme-related keywords
+      const baseQuery = selectedCategory !== 'all' 
+        ? `${selectedCategory} scheme india`
+        : 'government scheme india OR yojana OR pradhan mantri';
+      
+      const searchQuery = encodeURIComponent(
+        `${searchText || baseQuery}`
+      );
+      
+      const apiUrl = `https://newsapi.org/v2/everything?` +
+        `q=${searchQuery}` +
+        `&apiKey=ed089d581b824a308c52fb11df9cb311` +
+        `&pageSize=20` +
+        `&page=${nextPage ? newsPage + 1 : 1}` +
+        `&language=${selectedLanguage !== 'all' ? selectedLanguage : 'en'}` +
+        `&sortBy=publishedAt` +
+        `&domains=indiatoday.in,indianexpress.com,timesofindia.indiatimes.com,livemint.com,businesstoday.in,ndtv.com,hindustantimes.com`;
 
-  const renderDocumentCard = (document: Document) => (
-    <Card key={document.id} style={styles.documentCard}>
-      <View style={styles.documentHeader}>
-        <View style={styles.documentIcon}>
-          <FontAwesome5 
-            name={getDocumentIcon(document.type)} 
-            size={24} 
-            color={THEME_COLORS.primary} 
+      console.log('Fetching news with URL:', apiUrl);
+
+      const response = await fetch(apiUrl);
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(`API Error: ${data.message || 'Failed to fetch news'}`);
+      }
+
+      if (!data.articles || data.articles.length === 0) {
+        // If no articles found with strict filtering, try with broader search
+        const broadSearchUrl = `https://newsapi.org/v2/everything?` +
+          `q=india government scheme OR policy` +
+          `&apiKey=ed089d581b824a308c52fb11df9cb311` +
+          `&pageSize=20` +
+          `&page=${nextPage ? newsPage + 1 : 1}` +
+          `&language=en` +
+          `&sortBy=publishedAt`;
+
+        const broadResponse = await fetch(broadSearchUrl);
+        const broadData = await broadResponse.json();
+        
+        if (!broadData.articles) {
+          throw new Error('No news found');
+        }
+
+        if (nextPage) {
+          setNewsPage(newsPage + 1);
+          setNewsArticles(prev => [...prev, ...broadData.articles]);
+        } else {
+          setNewsPage(1);
+          setNewsArticles(broadData.articles);
+        }
+        
+        return;
+      }
+
+      // Light filtering to ensure relevance
+      const filteredArticles = data.articles.filter(article => {
+        const content = (article.title + ' ' + (article.description || '')).toLowerCase();
+        return content.includes('scheme') || 
+               content.includes('yojana') || 
+               content.includes('policy') ||
+               content.includes('government') ||
+               content.includes('ministry');
+      });
+
+      if (nextPage) {
+        setNewsPage(newsPage + 1);
+        setNewsArticles(prev => [...prev, ...filteredArticles]);
+      } else {
+        setNewsPage(1);
+        setNewsArticles(filteredArticles);
+      }
+
+    } catch (error) {
+      console.error('Error fetching news:', error);
+      // On error, try with broader search terms
+      try {
+        const fallbackUrl = `https://newsapi.org/v2/top-headlines?` +
+          `country=in` +
+          `&category=business` +
+          `&apiKey=ed089d581b824a308c52fb11df9cb311` +
+          `&pageSize=20` +
+          `&page=${nextPage ? newsPage + 1 : 1}`;
+
+        const fallbackResponse = await fetch(fallbackUrl);
+        const fallbackData = await fallbackResponse.json();
+
+        if (fallbackData.articles && fallbackData.articles.length > 0) {
+          if (nextPage) {
+            setNewsPage(newsPage + 1);
+            setNewsArticles(prev => [...prev, ...fallbackData.articles]);
+          } else {
+            setNewsPage(1);
+            setNewsArticles(fallbackData.articles);
+          }
+        }
+      } catch (fallbackError) {
+        console.error('Fallback error:', fallbackError);
+      }
+    } finally {
+      setLoadingNews(false);
+    }
+  };
+
+  const handleDocumentUpload = async (docType: string) => {
+    try {
+      setUploadingDoc(docType);
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        copyToCacheDirectory: true
+      });
+
+      if (!result.canceled) {
+        const newDoc: Document = {
+          id: Date.now().toString(),
+          type: docType as Document['type'],
+          name: result.assets[0].name,
+          status: 'pending',
+          lastUpdated: new Date().toISOString(),
+        };
+
+        setDocuments([...documents, newDoc]);
+        // Here you would typically upload to your backend
+        // await uploadToServer(result.assets[0], docType);
+      }
+    } catch (error) {
+      console.error('Error uploading document:', error);
+    } finally {
+      setUploadingDoc(null);
+      setShowUploadModal(false);
+    }
+  };
+
+  const renderVideoCard = ({ item }: { item: SchemeVideo }) => (
+    <Pressable 
+      style={styles.videoCard}
+      onPress={() => Linking.openURL(item.videoUrl)}
+    >
+      <Image 
+        source={{ uri: item.thumbnail }}
+        style={styles.thumbnail}
+        resizeMode="cover"
+      />
+      <LinearGradient
+        colors={['transparent', 'rgba(0,0,0,0.8)']}
+        style={styles.videoOverlay}
+      >
+        <Text style={styles.videoTitle} numberOfLines={2}>
+          {item.title}
+        </Text>
+        <View style={styles.videoInfo}>
+          <Text style={styles.channelTitle}>{item.channelTitle}</Text>
+          <Text style={styles.publishDate}>{item.publishedAt}</Text>
+        </View>
+      </LinearGradient>
+    </Pressable>
+  );
+
+  const renderVideoSection = () => (
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.videoSectionContainer}>
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <LinearGradient
+            colors={['#ffffff', '#f8f8f8']}
+            style={styles.searchBar}
+          >
+            <Ionicons name="search" size={20} color="#666" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search schemes..."
+              value={searchText}
+              onChangeText={setSearchText}
+              onSubmitEditing={() => activeNewsTab === 'news' ? fetchNews() : fetchVideos()}
+            />
+          </LinearGradient>
+        </View>
+
+        {/* Toggle Tabs */}
+        <View style={styles.filtersContainer}>
+          <View style={styles.toggleContainer}>
+            <Pressable
+              style={[styles.toggleButton, activeNewsTab === 'news' && styles.activeToggle]}
+              onPress={() => setActiveNewsTab('news')}
+            >
+              <MaterialCommunityIcons 
+                name="newspaper-variant" 
+                size={20} 
+                color={activeNewsTab === 'news' ? '#fff' : '#666'} 
+              />
+              <Text style={[styles.toggleText, activeNewsTab === 'news' && styles.activeToggleText]}>
+                News
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.toggleButton, activeNewsTab === 'videos' && styles.activeToggle]}
+              onPress={() => setActiveNewsTab('videos')}
+            >
+              <MaterialCommunityIcons 
+                name="youtube" 
+                size={20} 
+                color={activeNewsTab === 'videos' ? '#fff' : '#666'} 
+              />
+              <Text style={[styles.toggleText, activeNewsTab === 'videos' && styles.activeToggleText]}>
+                Videos
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* Categories */}
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.categoriesContainer}
+            data={categories}
+            renderItem={({ item }) => (
+              <Pressable
+                style={[styles.categoryChip, selectedCategory === item.id && styles.activeCategoryChip]}
+                onPress={() => {
+                  setSelectedCategory(item.id);
+                  activeNewsTab === 'news' ? fetchNews() : fetchVideos();
+                }}
+              >
+                <Text style={[styles.categoryText, selectedCategory === item.id && styles.activeCategoryText]}>
+                  {item.label}
+                </Text>
+              </Pressable>
+            )}
+            keyExtractor={item => item.id}
           />
         </View>
-        <View style={styles.documentInfo}>
-          <Text style={styles.documentName}>{document.name}</Text>
-          <Text style={styles.documentDate}>
-            Last updated: {document.lastUpdated}
-          </Text>
-        </View>
-        <StatusBadge status={document.status} />
-      </View>
-      
-      <View style={styles.documentActions}>
-        <ActionButton 
-          icon="eye" 
-          label="View"
-          onPress={() => {
-            setSelectedDocument(document);
-            setViewModalVisible(true);
-          }}
-        />
-        <ActionButton 
-          icon="history" 
-          label="History"
-          onPress={() => console.log('View history')}
-        />
-        <ActionButton 
-          icon="share-alt" 
-          label="Share"
-          onPress={() => console.log('Share document')}
-        />
-      </View>
 
-      {document.status === 'verified' && (
-        <View style={styles.verificationInfo}>
-          <MaterialIcons name="verified" size={20} color={THEME_COLORS.success} />
-          <Text style={styles.verificationText}>
-            Verified • ID: {document.verificationId}
-          </Text>
-        </View>
-      )}
-    </Card>
+        {/* News/Videos Grid */}
+        {activeNewsTab === 'news' ? (
+          <FlatList
+            data={newsArticles}
+            renderItem={({ item, index }) => (
+              <Pressable 
+                style={[
+                  styles.newsCard,
+                  index % 2 === 0 && { marginRight: 8 }
+                ]}
+                onPress={() => Linking.openURL(item.url)}
+              >
+                <Image 
+                  source={{ uri: item.urlToImage || 'https://via.placeholder.com/300' }}
+                  style={styles.newsThumbnail}
+                  resizeMode="cover"
+                />
+                <LinearGradient
+                  colors={['transparent', 'rgba(0,0,0,0.8)']}
+                  style={styles.newsOverlay}
+                >
+                  <Text style={styles.newsTitle} numberOfLines={2}>
+                    {item.title}
+                  </Text>
+                  <View style={styles.newsInfo}>
+                    <Text style={styles.sourceText}>{item.source.name}</Text>
+                    <Text style={styles.dateText}>
+                      {new Date(item.publishedAt).toLocaleDateString()}
+                    </Text>
+                  </View>
+                </LinearGradient>
+              </Pressable>
+            )}
+            numColumns={2}
+            columnWrapperStyle={styles.newsGrid}
+            contentContainerStyle={styles.newsList}
+            onEndReached={() => !loadingNews && fetchNews(true)}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={() => 
+              loadingNews && <ActivityIndicator size="large" color={THEME_COLORS.primary} />
+            }
+          />
+        ) : (
+          // Existing video grid
+          <FlatList
+            data={videos}
+            renderItem={renderVideoCard}
+            keyExtractor={item => item.id}
+            numColumns={2}
+            columnWrapperStyle={styles.videoGrid}
+            contentContainerStyle={styles.videoList}
+            onEndReached={() => pageToken && fetchVideos(true)}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={() => 
+              loading && <ActivityIndicator size="large" color={THEME_COLORS.primary} />
+            }
+          />
+        )}
+      </View>
+    </SafeAreaView>
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        {/* Header Section */}
+    <View style={styles.mainContainer}>
+      <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>My Documents</Text>
-          <Pressable 
-            style={styles.uploadButton}
-            onPress={() => setUploadModalVisible(true)}
-          >
-            <FontAwesome5 name="plus" size={16} color="#FFF" />
-            <Text style={styles.uploadButtonText}>Upload New</Text>
-          </Pressable>
-        </View>
-
-        {/* Search and Categories */}
-        <View style={styles.searchAndCategories}>
-          <View style={styles.searchContainer}>
-            <FontAwesome5 name="search" size={16} color="#666" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search documents..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
+          <View style={styles.sectionTabs}>
+            <Pressable
+              style={[styles.sectionTab, activeSection === 'documents' && styles.activeSection]}
+              onPress={() => setActiveSection('documents')}
+            >
+              <MaterialCommunityIcons 
+                name="folder-multiple" 
+                size={24} 
+                color={activeSection === 'documents' ? THEME_COLORS.primary : '#666'} 
+              />
+              <Text style={[styles.sectionText, activeSection === 'documents' && styles.activeSectionText]}>
+                DigiLocker
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.sectionTab, activeSection === 'videos' && styles.activeSection]}
+              onPress={() => setActiveSection('videos')}
+            >
+              <MaterialCommunityIcons 
+                name="play-box-multiple" 
+                size={24} 
+                color={activeSection === 'videos' ? THEME_COLORS.primary : '#666'} 
+              />
+              <Text style={[styles.sectionText, activeSection === 'videos' && styles.activeSectionText]}>
+                Videos
+              </Text>
+            </Pressable>
           </View>
-
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            style={styles.categoriesContainer}
-            contentContainerStyle={styles.categoriesContent}
-          >
-            {categories.map(category => (
-              <Pressable
-                key={category.id}
-                style={[
-                  styles.categoryButton,
-                  selectedCategory === category.id && styles.categoryButtonActive
-                ]}
-                onPress={() => setSelectedCategory(category.id)}
-              >
-                <FontAwesome5 
-                  name={category.icon} 
-                  size={16} 
-                  color={selectedCategory === category.id ? '#FFF' : '#666'} 
-                />
-                <Text style={[
-                  styles.categoryButtonText,
-                  selectedCategory === category.id && styles.categoryButtonTextActive
-                ]}>
-                  {category.label}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
         </View>
 
-        {/* Documents List */}
-        <ScrollView style={styles.documentsList}>
-          {filteredDocuments.map(renderDocumentCard)}
-        </ScrollView>
-
-        {/* Upload Modal */}
-        <Modal
-          visible={uploadModalVisible}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setUploadModalVisible(false)}
-        >
-          <UploadDocumentModal 
-            onClose={() => setUploadModalVisible(false)}
-            onUpload={handleDocumentUpload}
-          />
-        </Modal>
-
-        {/* View Document Modal */}
-        <Modal
-          visible={viewModalVisible}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setViewModalVisible(false)}
-        >
-          <ViewDocumentModal 
-            document={selectedDocument}
-            onClose={() => setViewModalVisible(false)}
-          />
-        </Modal>
-      </View>
-    </SafeAreaView>
+        {/* Content Section */}
+        <View style={styles.content}>
+          {activeSection === 'documents' ? (
+            <DigiLockerSection />
+          ) : (
+            renderVideoSection()
+          )}
+        </View>
+      </SafeAreaView>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+    </View>
   );
 }
 
@@ -585,14 +876,187 @@ const getDocumentIcon = (type: Document['type']): string => {
 
 // Updated styles
 const styles = StyleSheet.create({
+  mainContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: '#FFF',
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    backgroundColor: '#fff',
   },
-  container: {
+  header: {
+    padding: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 16,
+  },
+  content: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#f5f5f5',
+  },
+  sectionTabs: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    padding: 4,
+  },
+  sectionTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  activeSection: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  sectionText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#666',
+  },
+  activeSectionText: {
+    color: THEME_COLORS.primary,
+  },
+  documentsContainer: {
+    flex: 1,
+    padding: 16,
+  },
+  infoCard: {
+    marginBottom: 20,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  infoCardGradient: {
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  infoCardContent: {
+    flex: 1,
+  },
+  infoCardTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  infoCardText: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+  },
+  documentCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  documentIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: `${THEME_COLORS.primary}10`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  documentInfo: {
+    flex: 1,
+  },
+  documentTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  documentSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 8,
+  },
+  progressBar: {
+    height: 4,
+    backgroundColor: '#eee',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: THEME_COLORS.primary,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#333',
+  },
+  requiredDocs: {
+    marginBottom: 20,
+  },
+  requiredDocsTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+    marginBottom: 12,
+  },
+  requiredDocItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  requiredDocText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  uploadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: THEME_COLORS.primary,
+    padding: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  uploadButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   searchAndCategories: {
     backgroundColor: '#FFF',
@@ -600,113 +1064,117 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#EEE',
   },
-  categoriesContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+  searchContainer: {
+    padding: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  filtersContainer: {
+    padding: 16,
+    gap: 16,
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    padding: 4,
+    borderRadius: 12,
     gap: 8,
   },
-  categoryButton: {
+  toggleButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#FFF',
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#EEE',
-    gap: 6,
+    padding: 8,
+    borderRadius: 8,
+    flex: 1,
+    justifyContent: 'center',
+    gap: 4,
   },
-  categoryButtonActive: {
+  activeToggle: {
     backgroundColor: THEME_COLORS.primary,
-    borderColor: THEME_COLORS.primary,
   },
-  categoryButtonText: {
+  toggleText: {
+    fontSize: 14,
     color: '#666',
     fontWeight: '500',
   },
-  categoryButtonTextActive: {
-    color: '#FFF',
+  activeToggleText: {
+    color: '#fff',
   },
-  header: {
+  categoriesContainer: {
+    flexGrow: 0,
+  },
+  categoryChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#eee',
+  },
+  activeCategoryChip: {
+    backgroundColor: THEME_COLORS.primary,
+    borderColor: THEME_COLORS.primary,
+  },
+  categoryText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  activeCategoryText: {
+    color: '#fff',
+  },
+  videoGrid: {
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+  },
+  videoList: {
+    padding: 8,
+  },
+  videoCard: {
+    width: COLUMN_WIDTH,
+    height: COLUMN_WIDTH * 1.4,
+    borderRadius: 12,
+    marginBottom: 16,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  thumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  videoOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 12,
+  },
+  videoTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  videoInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEE',
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#333',
+  channelTitle: {
+    fontSize: 12,
+    color: '#fff',
+    opacity: 0.8,
   },
-  uploadButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: THEME_COLORS.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 8,
-  },
-  uploadButtonText: {
-    color: '#FFF',
-    fontWeight: '600',
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-    margin: 16,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#EEE',
-  },
-  searchInput: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    fontSize: 16,
-  },
-  documentsList: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-  documentCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    elevation: 2,
-  },
-  documentHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  documentIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#F0F8FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  documentInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  documentName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-  },
-  documentDate: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 2,
+  publishDate: {
+    fontSize: 12,
+    color: '#fff',
+    opacity: 0.8,
   },
   statusBadge: {
     paddingHorizontal: 12,
@@ -718,14 +1186,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  documentActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#EEE',
-  },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -734,42 +1194,6 @@ const styles = StyleSheet.create({
   actionButtonText: {
     color: THEME_COLORS.primary,
     fontWeight: '500',
-  },
-  verificationInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#EEE',
-    gap: 8,
-  },
-  verificationText: {
-    color: '#666',
-    fontSize: 14,
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#FFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 16,
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#333',
   },
   uploadOptions: {
     gap: 12,
@@ -795,79 +1219,8 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#333',
   },
-  documentPreview: {
-    aspectRatio: 3/4,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 12,
-    marginVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  documentImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 12,
-  },
-  noPreview: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  noPreviewText: {
-    color: '#666',
-    fontSize: 16,
-  },
-  documentDetails: {
-    gap: 8,
-  },
-  detailLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 8,
-  },
-  detailText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  validationOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  confidenceScore: {
-    color: '#FFF',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  extractedData: {
-    marginTop: 16,
-    padding: 16,
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-  },
-  errors: {
-    marginTop: 16,
-    padding: 16,
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-  },
-  error: {
-    color: THEME_COLORS.error,
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  validatingContainer: {
-    padding: 16,
-    alignItems: 'center',
-    gap: 8,
-  },
-  validatingText: {
-    fontSize: 16,
-    color: '#666',
+  uploadOptionDisabled: {
+    opacity: 0.5,
   },
   loadingOverlay: {
     position: 'absolute',
@@ -886,7 +1239,137 @@ const styles = StyleSheet.create({
     color: THEME_COLORS.primary,
     fontWeight: '600',
   },
-  uploadOptionDisabled: {
-    opacity: 0.5,
+  newsCard: {
+    width: COLUMN_WIDTH,
+    height: COLUMN_WIDTH * 1.2,
+    borderRadius: 12,
+    marginBottom: 16,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  newsThumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  newsOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 12,
+  },
+  newsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  newsInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  sourceText: {
+    fontSize: 12,
+    color: '#fff',
+    opacity: 0.8,
+  },
+  dateText: {
+    fontSize: 12,
+    color: '#fff',
+    opacity: 0.8,
+  },
+  newsGrid: {
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+  },
+  newsList: {
+    padding: 8,
+  },
+  videoSectionContainer: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 4,
+    borderRadius: 12,
+    backgroundColor: '#f5f5f5',
+    borderColor: '#eee',
+    borderWidth: 1,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
+    height: 41,
+  },
+  filtersContainer: {
+    padding: 16,
+    gap: 16,
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    padding: 4,
+    borderRadius: 12,
+    gap: 8,
+  },
+  toggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    borderRadius: 8,
+    flex: 1,
+    justifyContent: 'center',
+    gap: 4,
+  },
+  activeToggle: {
+    backgroundColor: THEME_COLORS.primary,
+  },
+  toggleText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  activeToggleText: {
+    color: '#fff',
+  },
+  categoriesContainer: {
+    flexGrow: 0,
+  },
+  categoryChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#eee',
+  },
+  activeCategoryChip: {
+    backgroundColor: THEME_COLORS.primary,
+    borderColor: THEME_COLORS.primary,
+  },
+  categoryText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  activeCategoryText: {
+    color: '#fff',
+  },
+  videoGrid: {
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+  },
+  videoList: {
+    padding: 8,
   },
 }); 

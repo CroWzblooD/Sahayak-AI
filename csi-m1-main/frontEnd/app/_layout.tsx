@@ -53,16 +53,28 @@ export function RootLayoutNav() {
   useEffect(() => {
     const inAuthGroup = segments[0] === "(auth)";
     const inSchemeDetails = segments.includes("schemes");
+    const inLanguageSelect = segments.includes("LanguageSelect");
+    const inProfile = segments.includes("profile");
+    const inEditProfile = segments.includes("edit-profile");
+    const inNotifications = segments.includes("notifications");
+    const inHelp = segments.includes("help");
     
     if (!user && !inAuthGroup) {
       // If no user and not in auth group, go to login
       router.replace("/(auth)/login");
-    } else if (user && !user.onboardingCompleted && 
-               segments[0] !== "(tabs)" && 
-               !segments.includes("OnBoardingForm") && 
-               !inSchemeDetails) {
-      // Only redirect to onboarding if not viewing scheme details
-      router.replace("/OnBoardingForm");
+    } else if (
+      user && 
+      !inLanguageSelect && 
+      !inProfile && 
+      !inEditProfile &&  // Add these checks
+      !inNotifications && 
+      !inHelp &&
+      segments[0] !== "(tabs)" && 
+      !segments.includes("OnBoardingForm") && 
+      !inSchemeDetails
+    ) {
+      // First go to language selection
+      router.replace("/LanguageSelect");
     }
   }, [user, segments]);
 
@@ -72,12 +84,46 @@ export function RootLayoutNav() {
         name="(auth)" 
         options={{ 
           headerShown: false,
-          // Add this to ensure auth screens work properly
           presentation: 'modal' 
         }} 
       />
       <Stack.Screen 
+        name="LanguageSelect" 
+        options={{ 
+          headerShown: false,
+          presentation: 'modal'
+        }} 
+      />
+      <Stack.Screen 
         name="OnBoardingForm" 
+        options={{ 
+          headerShown: false,
+          presentation: 'modal'
+        }} 
+      />
+      <Stack.Screen 
+        name="profile" 
+        options={{ 
+          headerShown: false,
+          presentation: 'modal'
+        }} 
+      />
+      <Stack.Screen 
+        name="edit-profile" 
+        options={{ 
+          headerShown: false,
+          presentation: 'modal'
+        }} 
+      />
+      <Stack.Screen 
+        name="notifications" 
+        options={{ 
+          headerShown: false,
+          presentation: 'modal'
+        }} 
+      />
+      <Stack.Screen 
+        name="help" 
         options={{ 
           headerShown: false,
           presentation: 'modal'

@@ -44,7 +44,6 @@ export default function Login() {
   const handleLogin = async () => {
     try {
       await signIn({ email, password });
-      router.replace("/OnBoardingForm");
     } catch (error) {
       Alert.alert('Error', 'Invalid credentials');
     }

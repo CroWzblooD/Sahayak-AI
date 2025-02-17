@@ -195,8 +195,15 @@ export default function HomeScreen() {
                 Sahayak AI
               </ThemedText>
             </View>
-            <Pressable style={styles.profileButton}>
-              <Ionicons name="person-circle-outline" size={32} color={THEME_COLORS.primary} />
+            <Pressable 
+              style={styles.profileButton}
+              onPress={() => router.push('/profile')}
+            >
+              <Ionicons 
+                name="person-circle-outline" 
+                size={32} 
+                color={THEME_COLORS.primary} 
+              />
             </Pressable>
           </View>
 

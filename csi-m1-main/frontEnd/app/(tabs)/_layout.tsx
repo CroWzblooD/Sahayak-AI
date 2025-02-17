@@ -100,9 +100,18 @@ export default function TabLayout() {
       <Tabs.Screen
         name="documents"
         options={{
-          title: 'Documents',
+          title: 'Resources',
           tabBarIcon: ({ color }) => (
             <MaterialCommunityIcons name="folder-multiple-outline" size={26} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="scheme-videos"
+        options={{
+          title: 'Videos',
+          tabBarIcon: ({ color }) => (
+            <MaterialCommunityIcons name="play-box-multiple-outline" size={26} color={color} />
           ),
         }}
       />
