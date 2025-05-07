@@ -9,7 +9,7 @@
     "keywords": [],
     "author": "Joyal",
     "license": "ISC",
-    "description": "This is the csi-m1 backend",
+    "description": "This is the Sahayak AI backend application",
     "devDependencies": {
         "@types/bcryptjs": "^2.4.6",
         "@types/cors": "^2.8.17",

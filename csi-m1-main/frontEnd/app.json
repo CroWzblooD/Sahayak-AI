@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "csi-m1",
-    "slug": "csi-m1",
+    "name": "Sahayak AI",
+    "slug": "sahayak-ai",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -11,15 +11,16 @@
     "ios": {
       "supportsTablet": true,
       "config": {
-        "googleMapsApiKey": "your-google-maps-api-key"
-      }
+        "googleMapsApiKey": "AIzaSyBOfdEKeLxbQwRRuunXQ7hdRX4s9Y3ckR0"
+      },
+      "bundleIdentifier": "com.sahayakai.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.joyaljijo.csim1",
+      "package": "com.sahayakai.app",
       "config": {
         "googleMaps": {
           "apiKey": "AIzaSyBOfdEKeLxbQwRRuunXQ7hdRX4s9Y3ckR0"
@@ -50,7 +51,7 @@
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "Allow $(PRODUCT_NAME) to use Face ID."
+          "faceIDPermission": "Allow Sahayak AI to use Face ID."
         }
       ]
     ],

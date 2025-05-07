@@ -11,8 +11,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// MongoDB Connection with proper URL format
-const MONGODB_URI = 'mongodb+srv://Sahayak-AI:Crow%406083@sahayak-ai.4tcbz.mongodb.net/?retryWrites=true&w=majority&appName=Sahayak-AI';
+// MongoDB Connection using environment variables
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://Sahayak-AI:Crow%406083@sahayak-ai.4tcbz.mongodb.net/?retryWrites=true&w=majority&appName=Sahayak-AI';
 
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('MongoDB Connected'))
@@ -45,7 +45,7 @@ app.post('/api/auth/register', async (req, res) => {
     // Generate token
     const token = jwt.sign(
       { userId: user._id },
-      'your-secret-key',
+      process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '7d' }
     );
 
@@ -93,7 +93,7 @@ app.post('/api/auth/login', async (req, res) => {
     // Generate token
     const token = jwt.sign(
       { userId: user._id },
-      'your-secret-key',
+      process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '7d' }
     );
 

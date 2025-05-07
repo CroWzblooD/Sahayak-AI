@@ -4,10 +4,12 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { User } from '../models/User';
 
-// MongoDB Connection
-mongoose.connect('mongodb+srv://Sahayak-AI:Crow@6083@sahayak-ai.4tcbz.mongodb.net/?retryWrites=true&w=majority&appName=Sahayak-AI')
-  .then(() => console.log('MongoDB Connected'))
-  .catch(err => console.error('MongoDB connection error:', err));
+// MongoDB Connection using environment variables
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://Sahayak-AI:Crow%406083@sahayak-ai.4tcbz.mongodb.net/?retryWrites=true&w=majority&appName=Sahayak-AI';
+
+mongoose.connect(MONGODB_URI)
+  .then(() => console.log('MongoDB Connected in auth routes'))
+  .catch(err => console.error('MongoDB connection error in auth routes:', err));
 
 const router = Router();
 
@@ -39,7 +41,7 @@ router.post('/login', async (req, res) => {
     // Generate token
     const token = jwt.sign(
       { userId: user._id },
-      'your-secret-key',  // Replace with a secure secret key
+      process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '7d' }
     );
 
@@ -93,7 +95,7 @@ router.post('/register', async (req, res) => {
     // Generate token
     const token = jwt.sign(
       { userId: user._id },
-      'your-secret-key',  // Replace with a secure secret key
+      process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '7d' }
     );
 
