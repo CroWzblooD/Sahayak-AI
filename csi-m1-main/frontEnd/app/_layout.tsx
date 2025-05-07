@@ -18,6 +18,18 @@ const config = createTamagui(defaultConfig);
 
 SplashScreen.preventAutoHideAsync();
 
+type AppSegment = 
+  | "(auth)"
+  | "LanguageSelect"
+  | "profile"
+  | "edit-profile"
+  | "notifications"
+  | "help"
+  | "schemes-category"
+  | "scheme-details"
+  | "(tabs)"
+  | "OnBoardingForm";
+
 export default function RootLayout() {
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
@@ -52,34 +64,26 @@ export function RootLayoutNav() {
 
   useEffect(() => {
     const inAuthGroup = segments[0] === "(auth)";
-    const inSchemeDetails = segments.includes("schemes");
-    const inLanguageSelect = segments.includes("LanguageSelect");
-    const inProfile = segments.includes("profile");
-    const inEditProfile = segments.includes("edit-profile");
-    const inNotifications = segments.includes("notifications");
-    const inHelp = segments.includes("help");
+    const currentSegment = segments[segments.length - 1];
     
     if (!user && !inAuthGroup) {
-      // If no user and not in auth group, go to login
       router.replace("/(auth)/login");
     } else if (
       user && 
-      !inLanguageSelect && 
-      !inProfile && 
-      !inEditProfile &&  // Add these checks
-      !inNotifications && 
-      !inHelp &&
-      segments[0] !== "(tabs)" && 
-      !segments.includes("OnBoardingForm") && 
-      !inSchemeDetails
+      !["LanguageSelect", "profile", "edit-profile", "notifications", "help", "schemes-category", "scheme-details", "OnBoardingForm"].includes(currentSegment) &&
+      segments[0] !== "(tabs)"
     ) {
-      // First go to language selection
       router.replace("/LanguageSelect");
     }
   }, [user, segments]);
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack 
+      screenOptions={{
+        headerShown: false,
+        animation: 'slide_from_right',
+      }}
+    >
       <Stack.Screen 
         name="(auth)" 
         options={{ 
@@ -130,6 +134,14 @@ export function RootLayoutNav() {
         }} 
       />
       <Stack.Screen 
+        name="scheme-details"
+        options={{ 
+          headerShown: false,
+          presentation: 'card',
+          animation: 'slide_from_right',
+        }} 
+      />
+      <Stack.Screen 
         name="(tabs)" 
         options={{ 
           headerShown: false 
@@ -140,6 +152,14 @@ export function RootLayoutNav() {
         options={{ 
           headerShown: true,
           presentation: 'modal'
+        }} 
+      />
+      <Stack.Screen 
+        name="schemes-category" 
+        options={{ 
+          headerShown: false,
+          presentation: 'card',
+          animation: 'slide_from_right',
         }} 
       />
     </Stack>

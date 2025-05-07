@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, Modal, TextInput, Animated } from 'react-native';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, Modal, TextInput, Animated, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StyleSheet } from 'react-native';
@@ -24,6 +24,55 @@ interface SchemeResult {
   applicationUrl?: string;
   category: string;
 }
+
+// Define scheme categories
+const SCHEME_CATEGORIES = [
+  { id: 'agriculture', title: 'Agriculture Schemes', icon: '🌾' },
+  { id: 'education', title: 'Education Schemes', icon: '📚' },
+  { id: 'health', title: 'Health Schemes', icon: '🏥' },
+  { id: 'housing', title: 'Housing Schemes', icon: '🏠' },
+  { id: 'women', title: 'Women Empowerment', icon: '👩' },
+  { id: 'skill', title: 'Skill Development', icon: '💪' },
+  { id: 'msme', title: 'MSME Support', icon: '🏭' },
+  { id: 'social-security', title: 'Social Security', icon: '🛡️' },
+  { id: 'rural', title: 'Rural Development', icon: '🌱' },
+  { id: 'digital', title: 'Digital India', icon: '💻' },
+];
+
+// Add defaultScheme function
+const defaultScheme = (category: any) => ({
+  name: "Default Scheme",
+  description: "Information temporarily unavailable. Please check back later.",
+  lastDate: "Ongoing",
+  fundingAmount: "As per guidelines",
+  eligibilityCriteria: [
+    "Indian Citizen",
+    "Age 18 and above",
+    "Valid documentation"
+  ],
+  benefits: [
+    "Financial assistance",
+    "Government support",
+    "Official documentation"
+  ],
+  requiredDocuments: [
+    "Aadhaar Card",
+    "Income Certificate",
+    "Address Proof"
+  ],
+  applicationSteps: [
+    "Document verification",
+    "Form submission",
+    "Application processing"
+  ],
+  status: "Active",
+  department: `${category.title} Department`,
+  contactInfo: {
+    website: "https://example.gov.in",
+    helpline: "1800-XXX-XXX",
+    email: "help@scheme.gov.in"
+  }
+});
 
 export default function SchemesScreen() {
   const router = useRouter();
@@ -134,6 +183,65 @@ export default function SchemesScreen() {
     }
   };
 
+  const handleCategoryPress = async (category: typeof SCHEME_CATEGORIES[0]) => {
+    setLoading(true);
+    try {
+      const prompt = `Generate 5 government schemes for ${category.title} in India with exact details. Format as clean JSON array only, no additional text:
+[{
+  "name": "Scheme Name",
+  "description": "Brief description",
+  "lastDate": "Deadline",
+  "fundingAmount": "Amount",
+  "eligibilityCriteria": ["criteria1", "criteria2"],
+  "benefits": ["benefit1", "benefit2"],
+  "requiredDocuments": ["doc1", "doc2"],
+  "applicationSteps": ["step1", "step2"],
+  "status": "Active",
+  "department": "Department Name",
+  "contactInfo": {
+    "website": "https://example.gov.in",
+    "helpline": "1800-XXX-XXX",
+    "email": "help@scheme.gov.in"
+  }
+}]`;
+
+      let schemes = [];
+      try {
+        const response = await aiService.getTextResponse(prompt);
+        // Clean the response to ensure valid JSON
+        const cleanedResponse = response
+          .replace(/```json\n?|\n?```/g, '')
+          .replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
+          .trim();
+        
+        // Validate if response starts with [ and ends with ]
+        if (cleanedResponse.startsWith('[') && cleanedResponse.endsWith(']')) {
+          schemes = JSON.parse(cleanedResponse);
+        } else {
+          throw new Error('Invalid JSON format');
+        }
+      } catch (error) {
+        console.error('AI generation error:', error);
+        // Use fallback schemes
+        schemes = Array(5).fill(null).map(() => defaultScheme(category));
+      }
+
+      router.push({
+        pathname: "/schemes-category",
+        params: { 
+          category: category.id,
+          title: category.title,
+          schemes: JSON.stringify(schemes)
+        }
+      });
+    } catch (error) {
+      console.error('Error handling schemes:', error);
+      Alert.alert('Error', 'Failed to load schemes. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -175,16 +283,15 @@ export default function SchemesScreen() {
         </View>
 
         <View style={styles.categoriesGrid}>
-          {categories.map((category) => (
+          {SCHEME_CATEGORIES.map((category) => (
             <Pressable
               key={category.id}
               style={styles.categoryCard}
-              onPress={() => router.push(`/schemes/${category.id}`)}>
+              onPress={() => handleCategoryPress(category)}
+            >
               <Text style={styles.categoryIcon}>{category.icon}</Text>
               <Text style={styles.categoryTitle}>{category.title}</Text>
-              <Text style={styles.schemeCount}>
-                {category.schemes.length} schemes
-              </Text>
+              <Text style={styles.schemeCount}>View Schemes</Text>
             </Pressable>
           ))}
         </View>
@@ -290,9 +397,11 @@ export default function SchemesScreen() {
                           </View>
 
                           <View style={[styles.eligibilityBadge, 
-                            scheme.eligibility === 'Eligible' ? styles.eligibleBadge : 
-                            scheme.eligibility === 'Not Eligible' ? styles.notEligibleBadge :
-                            styles.potentiallyEligibleBadge
+                            { backgroundColor: 
+                              scheme.eligibility === 'Eligible' ? '#E3FCEF' : 
+                              scheme.eligibility === 'Not Eligible' ? '#FEE2E2' : 
+                              '#FEF3C7'
+                            }
                           ]}>
                             <MaterialIcons 
                               name={scheme.eligibility === 'Eligible' ? "check-circle" : 
@@ -310,7 +419,7 @@ export default function SchemesScreen() {
                           <View style={styles.sectionContainer}>
                             <View style={styles.sectionHeader}>
                               <FontAwesome5 name="check-double" size={16} color="#666" />
-                              <Text style={styles.sectionTitle}>Why Suitable</Text>
+                              <Text style={styles.bodySectionTitle}>Why Suitable</Text>
                             </View>
                             <View style={styles.bulletPoints}>
                               {scheme.whySuitable.map((point, index) => (
@@ -322,7 +431,7 @@ export default function SchemesScreen() {
                           <View style={styles.sectionContainer}>
                             <View style={styles.sectionHeader}>
                               <FontAwesome5 name="gift" size={16} color="#666" />
-                              <Text style={styles.sectionTitle}>Benefits</Text>
+                              <Text style={styles.bodySectionTitle}>Benefits</Text>
                             </View>
                             <View style={styles.bulletPoints}>
                               {scheme.benefits.map((benefit, index) => (
@@ -349,7 +458,7 @@ export default function SchemesScreen() {
                                 if (scheme.applicationUrl) {
                                   Linking.openURL(scheme.applicationUrl);
                                 } else {
-                                  router.push(`/schemes/apply/${scheme.id}`);
+                                  router.push("/schemes");
                                 }
                               }}
                             >
@@ -642,13 +751,15 @@ const styles = StyleSheet.create({
   eligibilityBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E3FCEF',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
     alignSelf: 'flex-start',
     marginBottom: 16,
     gap: 6,
+  },
+  eligibilityBadgeBackground: {
+    backgroundColor: 'transparent',
   },
   eligibilityText: {
     color: '#00875A',
@@ -664,7 +775,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 8,
   },
-  sectionTitle: {
+  bodySectionTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#666',
@@ -788,14 +899,5 @@ const styles = StyleSheet.create({
     color: '#333',
     lineHeight: 24,
     marginBottom: 8,
-  },
-  eligibleBadge: {
-    backgroundColor: '#E3FCEF',
-  },
-  notEligibleBadge: {
-    backgroundColor: '#FEE2E2',
-  },
-  potentiallyEligibleBadge: {
-    backgroundColor: '#FEF3C7',
   },
 }); 

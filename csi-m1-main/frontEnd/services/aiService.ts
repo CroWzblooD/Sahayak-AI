@@ -1,8 +1,9 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Initialize Gemini
-const genAI = new GoogleGenerativeAI("AIzaSyDqWpeErNqE79KalumA1dFaezG4wPmBTZw");
-const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+// Initialize Gemini with proper API version
+const genAI = new GoogleGenerativeAI("AIzaSyCXuS_V-WkItGd5UXqpp35B8w6MkjmJu5E");
+// Use the correct model name - check current documentation for the latest name
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
 
 export const SUPPORTED_LANGUAGES = [
   { code: 'en', name: 'English' },
@@ -95,29 +96,64 @@ Brief introduction...
 
 type SupportedLanguage = 'en' | 'hi' | 'bn' | 'te' | 'ta';
 
+// Add error handling and retry logic
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
+
 export const aiService = {
   async getTextResponse(prompt: string, language: SupportedLanguage = 'en') {
-    try {
-      const result = await model.generateContent(`
-        ${SAHAYAK_PROMPT[language]}
+    let retries = 0;
+    
+    while (retries < MAX_RETRIES) {
+      try {
+        console.log(`Attempting to generate content (attempt ${retries + 1})`);
         
-        ${FORMAT_INSTRUCTIONS[language]}
+        const result = await model.generateContent({
+          contents: [{ 
+            role: "user",
+            parts: [{ 
+              text: `
+                ${SAHAYAK_PROMPT[language]}
+                
+                ${FORMAT_INSTRUCTIONS[language]}
+                
+                User Query: ${prompt}
+              `
+            }]
+          }]
+        });
         
-        User Query: ${prompt}
-      `);
-      
-      const response = await result.response;
-      const formattedText = response.text()
-    //     .replace(/\*\*(.*?)\*\*/g, '**$1**')
-    //     .replace(/[-*]/g, '•')
-    //     .replace(/\n\s*\n/g, '\n\n')
-    //     .trim();
-
-      return formattedText;
-    } catch (error) {
-      console.error('Error:', error);
-      throw error;
+        const response = result.response;
+        const formattedText = response.text();
+        
+        return formattedText;
+      } catch (error) {
+        console.error(`Attempt ${retries + 1} failed:`, error);
+        
+        // Check if we should retry
+        if (retries < MAX_RETRIES - 1) {
+          retries++;
+          console.log(`Waiting ${RETRY_DELAY}ms before retry ${retries}`);
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+        } else {
+          // If all retries failed, fall back to a default response
+          console.error('All retries failed');
+          
+          const fallbackResponses = {
+            en: "I'm sorry, I'm having trouble connecting to my knowledge base right now. Please try again in a moment.",
+            hi: "मुझे खेद है, मैं अभी अपने ज्ञान आधार से कनेक्ट करने में समस्या का सामना कर रहा हूं। कृपया थोड़ी देर बाद पुनः प्रयास करें।",
+            bn: "আমি দুঃখিত, আমি এখন আমার জ্ঞান ভান্ডারের সাথে সংযোগ করতে সমস্যা হচ্ছে। অনুগ্রহ করে কিছুক্ষণ পরে আবার চেষ্টা করুন।",
+            te: "క్షమించండి, నా నాలెడ్జ్ బేస్‌కి కనెక్ట్ చేయడంలో నాకు ఇప్పుడు సమస్య ఉంది. దయచేసి కొద్ది సేపట్లో మళ్లీ ప్రయత్నించండి.",
+            ta: "மன்னிக்கவும், என் அறிவுத்தளத்துடன் இணைப்பதில் தற்போது எனக்கு சிரமம் ஏற்படுகிறது. சிறிது நேரத்தில் மீண்டும் முயற்சிக்கவும்."
+          };
+          
+          return fallbackResponses[language] || fallbackResponses.en;
+        }
+      }
     }
+    
+    // This shouldn't be reached due to our retry logic, but TypeScript requires a return
+    return "An unexpected error occurred. Please try again.";
   },
 
   async processVoiceToText(audioUri: string) {
@@ -144,28 +180,35 @@ export const aiService = {
 
   async analyzeEligibility(userDetails: string, schemeDetails: string) {
     try {
-      const result = await model.generateContent(`
-        As an expert in Indian government schemes, analyze the following:
+      const result = await model.generateContent({
+        contents: [{ 
+          role: "user",
+          parts: [{ 
+            text: `
+              As an expert in Indian government schemes, analyze the following:
 
-        User Details:
-        ${userDetails}
+              User Details:
+              ${userDetails}
 
-        Scheme Details:
-        ${schemeDetails}
+              Scheme Details:
+              ${schemeDetails}
 
-        Please provide:
-        1. Eligibility assessment
-        2. Required documents
-        3. Alternative recommendations
+              Please provide:
+              1. Eligibility assessment
+              2. Required documents
+              3. Alternative recommendations
 
-        Format the response in clear sections with bullet points.
-      `);
+              Format the response in clear sections with bullet points.
+            `
+          }]
+        }]
+      });
       
-      const response = await result.response;
+      const response = result.response;
       return response.text();
     } catch (error) {
       console.error('Error analyzing eligibility:', error);
       throw error;
     }
   }
-}; 
+};

@@ -1,0 +1,1 @@
+export const GOOGLE_AI_KEY = 'AIzaSyA-e3uivpNa_3xqh8-W9gyA6SdVSM_4KFw'; 

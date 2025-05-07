@@ -6,7 +6,12 @@ import {
   Image, 
   Dimensions,
   View,
-  ScrollView
+  ScrollView,
+  ActivityIndicator,
+  Linking,
+  Text,
+  TextInput,
+  PermissionsAndroid
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -15,6 +20,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MotiView } from 'moti';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemedText } from '@/components/ThemedText';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect, useState } from 'react';
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import Voice from '@react-native-voice/voice';
 
 const { width } = Dimensions.get('window');
 
@@ -36,6 +45,45 @@ const THEME_COLORS = {
   lightText: '#6B7280',
 };
 
+interface UserProfile {
+  personal: {
+    name: string;
+    age: string;
+    occupation: string;
+    education: string;
+    disability: string;
+    disabilityType: string;
+  };
+  financial: {
+    monthlyIncome: string;
+    category: string;
+  };
+  location: {
+    state: string;
+    city: string;
+  };
+}
+
+interface SchemeEligibilityCriteria {
+  incomeLimit?: number;
+  categories?: string[];
+  age?: { min?: number; max?: number };
+  education?: string[];
+  occupation?: string[];
+  disability?: boolean;
+  states?: string[];
+  gender?: string[];
+}
+
+interface GovernmentScheme {
+  name: string;
+  category: string;
+  description: string;
+  eligibilityCriteria: SchemeEligibilityCriteria;
+  benefits: string;
+  icon: keyof typeof Ionicons.glyphMap;
+}
+
 interface Scheme {
   id: string;
   title: string;
@@ -43,6 +91,16 @@ interface Scheme {
   deadline: Date;
   eligibility: string;
   icon: keyof typeof Ionicons.glyphMap;
+  minIncome?: number;
+  maxIncome?: number;
+  targetCategories?: string[];
+  targetOccupations?: string[];
+  targetEducation?: string[];
+  targetStates?: string[];
+  disabilityEligible?: boolean;
+  details?: string;
+  applicationUrl?: string;
+  location?: string;
 }
 
 const FEATURED_SCHEMES: Scheme[] = [
@@ -111,8 +169,327 @@ const CATEGORIES = [
   },
 ];
 
+// Initialize Gemini
+const genAI = new GoogleGenerativeAI('AIzaSyCXuS_V-WkItGd5UXqpp35B8w6MkjmJu5E'); // Replace with your actual API key
+
+const generateRecommendedSchemes = async (profile: UserProfile): Promise<Scheme[]> => {
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+
+    // Only generate recommendations if we have meaningful profile data
+    if (profile.personal.name === 'N/A' || !profile.personal.age) {
+      return [];
+    }
+
+    const prompt = `You are a government scheme recommendation system. Based on the following user profile, recommend relevant Indian government schemes.
+      
+      User Profile:
+      - Age: ${profile.personal.age}
+      - Occupation: ${profile.personal.occupation}
+      - Education: ${profile.personal.education}
+      - Monthly Income: ${profile.financial.monthlyIncome}
+      - Category: ${profile.financial.category}
+      - State: ${profile.location.state}
+      - Disability Status: ${profile.personal.disability}
+      - Disability Type: ${profile.personal.disabilityType}
+
+      Provide 3-5 most relevant government schemes as a valid JSON array. Each scheme should have:
+      {
+        "id": "unique_string",
+        "title": "scheme name",
+        "category": "scheme category",
+        "deadline": "2024-12-31",
+        "eligibility": "brief eligibility criteria",
+        "icon": "one of: leaf-outline, school-outline, medical-outline, home-outline, business-outline",
+        "details": "benefits description"
+      }
+
+      Ensure the JSON is properly formatted with commas between properties and no trailing commas.`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    
+    // Clean and fix common JSON formatting issues
+    const cleanedText = text.trim()
+      .replace(/```json/g, '')
+      .replace(/```/g, '')
+      .replace(/^\s*\n/gm, '')
+      // Fix the specific issue with "scheme_3": instead of "scheme_3",
+      .replace(/"id":\s*"([^"]+)":\s*"([^"]+)"/, '"id": "$1", "title": "$2"')
+      // Remove any trailing commas in objects
+      .replace(/,(\s*})/g, '$1')
+      // Remove any trailing commas in arrays
+      .replace(/,(\s*\])/g, '$1');
+
+    try {
+      let generatedSchemes;
+      try {
+        generatedSchemes = JSON.parse(cleanedText);
+      } catch (initialParseError) {
+        // If initial parse fails, try to fix common JSON issues
+        const fixedText = cleanedText
+          // Fix missing commas between objects in array
+          .replace(/}(\s*){/g, '},{')
+          // Fix extra colons in id fields
+          .replace(/"id":\s*"([^"]+)":\s*/, '"id": "$1", "title": ');
+        
+        generatedSchemes = JSON.parse(fixedText);
+      }
+
+      // Validate and format each scheme
+      return generatedSchemes.map((scheme: any) => {
+        // Ensure all required fields are present
+        const formattedScheme = {
+          id: scheme.id || Math.random().toString(36).substr(2, 9),
+          title: scheme.title || scheme.name || 'Unknown Scheme', // Handle both title and name fields
+          category: scheme.category || 'General',
+          deadline: scheme.deadline === 'Ongoing' 
+            ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) // Set 1 year for ongoing schemes
+            : new Date(scheme.deadline || Date.now() + 90 * 24 * 60 * 60 * 1000),
+          eligibility: scheme.eligibility || 'Contact local authorities for eligibility',
+          icon: (scheme.icon as keyof typeof Ionicons.glyphMap) || 'document-outline',
+          details: scheme.details || 'Details not available',
+          applicationUrl: scheme.applicationUrl,
+          location: scheme.location
+        };
+
+        return formattedScheme;
+      });
+    } catch (parseError) {
+      console.error('JSON parsing error:', parseError);
+      console.log('Received text:', cleanedText);
+      // If all parsing attempts fail, return empty array
+      return [];
+    }
+  } catch (error) {
+    console.error('Error generating recommendations:', error);
+    return [];
+  }
+};
+
 export default function HomeScreen() {
   const router = useRouter();
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [recommendedSchemes, setRecommendedSchemes] = useState<Scheme[]>([]);
+  const [isGeneratingRecommendations, setIsGeneratingRecommendations] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Scheme[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isVoiceListening, setIsVoiceListening] = useState(false);
+  const [hasVoicePermission, setHasVoicePermission] = useState(false);
+
+  useEffect(() => {
+    const loadUserDataAndGenerateRecommendations = async () => {
+      try {
+        const onboardingData = await AsyncStorage.getItem('onboardingResponses');
+        if (!onboardingData) {
+          return; // Don't proceed if no onboarding data
+        }
+
+        const parsedOnboarding = JSON.parse(onboardingData);
+        
+        // Only proceed if we have meaningful data
+        if (!parsedOnboarding.fullName || !parsedOnboarding.age) {
+          return;
+        }
+
+        const profile: UserProfile = {
+          personal: {
+            name: parsedOnboarding.fullName,
+            age: parsedOnboarding.age,
+            occupation: parsedOnboarding.occupation || 'N/A',
+            education: parsedOnboarding.education || 'N/A',
+            disability: parsedOnboarding.disability || 'No',
+            disabilityType: parsedOnboarding.disabilityType || 'None'
+          },
+          financial: {
+            monthlyIncome: parsedOnboarding.monthlyIncome || 'N/A',
+            category: parsedOnboarding.caste || 'N/A',
+          },
+          location: {
+            state: parsedOnboarding.location || 'N/A',
+            city: parsedOnboarding.city || 'N/A',
+          }
+        };
+
+        setUserProfile(profile);
+        setIsGeneratingRecommendations(true);
+
+        // Generate recommendations using Gemini
+        const schemes = await generateRecommendedSchemes(profile);
+        setRecommendedSchemes(schemes);
+        setIsGeneratingRecommendations(false);
+      } catch (error) {
+        console.error('Error loading profile data:', error);
+        setIsGeneratingRecommendations(false);
+      }
+    };
+
+    loadUserDataAndGenerateRecommendations();
+  }, []);
+
+  useEffect(() => {
+    const checkPermission = async () => {
+      try {
+        if (Platform.OS === 'android') {
+          // Request Android permissions explicitly
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+            {
+              title: 'Voice Permission',
+              message: 'This app needs access to your microphone for voice search.',
+              buttonNeutral: 'Ask Me Later',
+              buttonNegative: 'Cancel',
+              buttonPositive: 'OK',
+            }
+          );
+          setHasVoicePermission(granted === PermissionsAndroid.RESULTS.GRANTED);
+        } else {
+          // For iOS, just check availability
+          const available = await Voice.isAvailable();
+          setHasVoicePermission(!!available);
+        }
+      } catch (error) {
+        console.error('Voice recognition setup error:', error);
+        setHasVoicePermission(false);
+      }
+    };
+
+    checkPermission();
+
+    Voice.onSpeechStart = () => setIsVoiceListening(true);
+    Voice.onSpeechEnd = () => setIsVoiceListening(false);
+    Voice.onSpeechResults = (e) => {
+      if (e.value && e.value[0]) {
+        setSearchQuery(e.value[0]);
+        handleSearch(e.value[0]);
+      }
+    };
+
+    return () => {
+      Voice.destroy().then(Voice.removeAllListeners);
+    };
+  }, []);
+
+  const startVoiceSearch = async () => {
+    try {
+      if (!hasVoicePermission) {
+        const available = await Voice.isAvailable();
+        if (!available) {
+          console.log('Voice recognition not available');
+          return;
+        }
+      }
+
+      await Voice.start('en-US');
+    } catch (error) {
+      console.error('Voice search error:', error);
+    }
+  };
+
+  const stopVoiceSearch = async () => {
+    try {
+      await Voice.stop();
+    } catch (error) {
+      console.error('Error stopping voice:', error);
+    }
+  };
+
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+      
+      const prompt = `Search for Indian government schemes related to "${query}". Return a valid JSON array with 3-5 most relevant schemes. Format strictly as follows:
+      [
+        {
+          "id": "unique_string",
+          "title": "scheme name",
+          "category": "scheme category",
+          "deadline": "2024-12-31",
+          "eligibility": "brief eligibility criteria",
+          "icon": "leaf-outline",
+          "details": "detailed description",
+          "applicationUrl": "https://example.com"
+        }
+      ]
+      
+      Notes:
+      - Use only valid dates between today and 2025-12-31
+      - Use only these icons: leaf-outline, school-outline, medical-outline, home-outline, business-outline
+      - Ensure valid JSON format with no trailing commas
+      - Include real application URLs when available`;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      let text = response.text();
+      
+      // Clean the response text
+      text = text
+        .replace(/```json\s*|\s*```/g, '')  // Remove JSON code blocks
+        .replace(/[\u201C\u201D]/g, '"')    // Replace smart quotes
+        .replace(/[\r\n\t]/g, ' ')          // Remove newlines and tabs
+        .trim();
+
+      // Extract JSON array if wrapped in other text
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) {
+        throw new Error('No valid JSON array found in response');
+      }
+
+      const cleanedText = jsonMatch[0];
+      
+      try {
+        const searchResults = JSON.parse(cleanedText);
+        
+        // Validate and format each scheme
+        const formattedResults = searchResults.map((scheme: any) => {
+          // Set a default deadline 3 months from now if not provided or invalid
+          const defaultDeadline = new Date();
+          defaultDeadline.setMonth(defaultDeadline.getMonth() + 3);
+
+          let deadline;
+          try {
+            deadline = scheme.deadline ? new Date(scheme.deadline) : defaultDeadline;
+            // Ensure date is valid and not in the past
+            if (isNaN(deadline.getTime()) || deadline < new Date()) {
+              deadline = defaultDeadline;
+            }
+          } catch {
+            deadline = defaultDeadline;
+          }
+
+          return {
+            id: scheme.id || Math.random().toString(36).substr(2, 9),
+            title: scheme.title || 'Unknown Scheme',
+            category: scheme.category || 'General',
+            deadline: deadline,
+            eligibility: scheme.eligibility || 'Contact department for eligibility details',
+            icon: scheme.icon || 'document-outline',
+            details: scheme.details || 'Additional details not available',
+            applicationUrl: scheme.applicationUrl || null
+          };
+        });
+
+        setSearchResults(formattedResults);
+      } catch (parseError) {
+        console.error('Parse error:', parseError);
+        throw new Error('Failed to parse search results');
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   const renderFeatureCard = ({ item }: { item: { title: string; icon: string } }) => (
     <MotiView
@@ -133,27 +510,38 @@ export default function HomeScreen() {
   const renderSchemeCard = ({ item }: { item: Scheme }) => (
     <Pressable 
       style={styles.schemeCard}
-      onPress={() => router.push({
-        pathname: "/(tabs)/schemes" as const,
-        params: { id: item.id }
-      })}>
-      <View style={styles.schemeIcon}>
-        <Ionicons name={item.icon} size={24} color={THEME_COLORS.primary} />
-      </View>
-      <View style={styles.schemeInfo}>
-        <ThemedText type="title" style={styles.schemeTitle}>
-          {item.title}
-        </ThemedText>
-        <ThemedText style={styles.schemeCategory}>
-          {item.category}
-        </ThemedText>
-        <View style={styles.schemeDeadline}>
-          <Ionicons name="time-outline" size={16} color={THEME_COLORS.lightText} />
-          <ThemedText style={styles.deadlineText}>
-            Deadline: {item.deadline.toLocaleDateString()}
-          </ThemedText>
+      onPress={() => {
+        if (item.applicationUrl) {
+          Linking.openURL(item.applicationUrl).catch(err => 
+            console.error('Error opening URL:', err)
+          );
+        } else {
+          router.push('/schemes');
+        }
+      }}
+    >
+      <LinearGradient
+        colors={[`${THEME_COLORS.primary}15`, `${THEME_COLORS.primary}05`]}
+        style={styles.schemeCardGradient}
+      >
+        <View style={styles.schemeIcon}>
+          <Ionicons name={item.icon} size={24} color={THEME_COLORS.primary} />
         </View>
-      </View>
+        <View style={styles.schemeInfo}>
+          <ThemedText type="title" style={styles.schemeTitle} numberOfLines={2}>
+            {item.title}
+          </ThemedText>
+          <ThemedText style={styles.schemeCategory}>
+            {item.category}
+          </ThemedText>
+          <View style={styles.schemeDeadline}>
+            <Ionicons name="time-outline" size={16} color={THEME_COLORS.lightText} />
+            <ThemedText style={styles.deadlineText}>
+              Apply by: {item.deadline.toLocaleDateString()}
+            </ThemedText>
+          </View>
+        </View>
+      </LinearGradient>
     </Pressable>
   );
 
@@ -184,6 +572,97 @@ export default function HomeScreen() {
     </Pressable>
   );
 
+  const renderRecommendedSchemes = () => {
+    if (isGeneratingRecommendations) {
+      return (
+        <View style={styles.noSchemesContainer}>
+          <ActivityIndicator size="large" color={THEME_COLORS.primary} />
+          <ThemedText style={styles.noSchemesText}>
+            Generating personalized recommendations...
+          </ThemedText>
+        </View>
+      );
+    }
+
+    if (recommendedSchemes.length === 0) {
+      return (
+        <View style={styles.noSchemesContainer}>
+          <ThemedText style={styles.noSchemesText}>
+            Complete your profile to get personalized scheme recommendations
+          </ThemedText>
+        </View>
+      );
+    }
+
+    return (
+      <FlatList
+        data={recommendedSchemes}
+        renderItem={renderSchemeCard}
+        keyExtractor={(item) => item.id}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.schemesList}
+      />
+    );
+  };
+
+  const renderSearchResults = () => (
+    <ScrollView 
+      style={styles.suggestionsScroll}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
+      {searchResults.map((item) => (
+        <Pressable
+          key={item.id}
+          style={styles.suggestionItem}
+          onPress={() => {
+            router.push({
+              pathname: '/scheme-details',
+              params: {
+                title: item.title,
+                category: item.category
+              }
+            });
+            setSearchQuery('');
+            setSearchResults([]);
+          }}
+        >
+          <View style={styles.suggestionIconContainer}>
+            <Ionicons 
+              name={item.icon || 'document-outline'} 
+              size={24} 
+              color={THEME_COLORS.primary} 
+            />
+          </View>
+          <View style={styles.suggestionContent}>
+            <Text style={styles.suggestionTitle} numberOfLines={1}>
+              {item.title}
+            </Text>
+            <Text style={styles.suggestionCategory}>
+              {item.category}
+            </Text>
+            <View style={styles.suggestionDeadline}>
+              <Ionicons 
+                name="time-outline" 
+                size={14} 
+                color={THEME_COLORS.lightText} 
+              />
+              <Text style={styles.deadlineText}>
+                Apply by: {item.deadline.toLocaleDateString()}
+              </Text>
+            </View>
+          </View>
+          <Ionicons 
+            name="chevron-forward" 
+            size={20} 
+            color={THEME_COLORS.lightText} 
+          />
+        </Pressable>
+      ))}
+    </ScrollView>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -207,11 +686,41 @@ export default function HomeScreen() {
             </Pressable>
           </View>
 
-          <Pressable style={styles.searchBar}>
-            <Ionicons name="search-outline" size={20} color={THEME_COLORS.lightText} />
-            <ThemedText style={styles.searchText}>Search government schemes...</ThemedText>
-            <Ionicons name="mic-outline" size={20} color={THEME_COLORS.primary} />
-          </Pressable>
+          <View style={styles.headerSection}>
+            <View style={styles.searchContainer}>
+              <View style={styles.searchBar}>
+                <Ionicons name="search-outline" size={20} color={THEME_COLORS.lightText} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search government schemes..."
+                  placeholderTextColor={THEME_COLORS.lightText}
+                  value={searchQuery}
+                  onChangeText={handleSearch}
+                />
+                {searchQuery ? (
+                  <Pressable onPress={() => handleSearch('')}>
+                    <Ionicons name="close-circle" size={20} color={THEME_COLORS.lightText} />
+                  </Pressable>
+                ) : (
+                  <Ionicons name="mic-outline" size={20} color={THEME_COLORS.primary} />
+                )}
+              </View>
+
+              {/* Search Suggestions Dropdown */}
+              {(isSearching || searchResults.length > 0) && searchQuery && (
+                <View style={styles.searchSuggestionsContainer}>
+                  {isSearching ? (
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator size="small" color={THEME_COLORS.primary} />
+                      <Text style={styles.loadingText}>Searching schemes...</Text>
+                    </View>
+                  ) : (
+                    renderSearchResults()
+                  )}
+                </View>
+              )}
+            </View>
+          </View>
         </View>
 
         <View style={styles.statsContainer}>
@@ -268,20 +777,13 @@ export default function HomeScreen() {
         <View style={styles.featuredSchemes}>
           <View style={styles.sectionHeader}>
             <ThemedText type="subtitle" style={styles.sectionTitle}>
-              Featured Schemes
+              Recommended Schemes
             </ThemedText>
             <Pressable>
               <ThemedText style={styles.seeAll}>View All</ThemedText>
             </Pressable>
           </View>
-          <FlatList
-            data={FEATURED_SCHEMES}
-            renderItem={renderSchemeCard}
-            keyExtractor={(item) => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.schemesList}
-          />
+          {renderRecommendedSchemes()}
         </View>
 
         <View style={styles.aiAssistantCard}>
@@ -339,24 +841,30 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: THEME_COLORS.text,
   },
+  headerSection: {
+    zIndex: 2, // Ensure dropdown appears above other content
+  },
+  searchContainer: {
+    padding: 16,
+    position: 'relative',
+  },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: THEME_COLORS.card,
     borderRadius: 12,
     padding: 12,
-    marginTop: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
   },
-  searchText: {
+  searchInput: {
     flex: 1,
     marginLeft: 8,
     fontSize: 14,
-    color: THEME_COLORS.lightText,
+    color: THEME_COLORS.text,
   },
   profileButton: {
     padding: 8,
@@ -378,17 +886,20 @@ const styles = StyleSheet.create({
     color: THEME_COLORS.primary,
   },
   schemeCard: {
-    flexDirection: 'row',
-    backgroundColor: THEME_COLORS.card,
-    borderRadius: 12,
-    padding: 16,
+    width: width * 0.8,
     marginRight: 16,
-    width: width * 0.75,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: THEME_COLORS.card,
+    elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 3,
+  },
+  schemeCardGradient: {
+    padding: 16,
+    flexDirection: 'row',
   },
   schemeIcon: {
     width: 48,
@@ -405,8 +916,8 @@ const styles = StyleSheet.create({
   schemeTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: THEME_COLORS.text,
     marginBottom: 4,
+    color: THEME_COLORS.text,
   },
   schemeCategory: {
     fontSize: 14,
@@ -418,9 +929,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   deadlineText: {
+    marginLeft: 4,
     fontSize: 12,
     color: THEME_COLORS.lightText,
-    marginLeft: 4,
+  },
+  deadlineInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -602,5 +1118,79 @@ const styles = StyleSheet.create({
   schemesList: {
     paddingHorizontal: 16,
     paddingBottom: 8,
+  },
+  noSchemesContainer: {
+    padding: 16,
+    alignItems: 'center',
+  },
+  noSchemesText: {
+    color: THEME_COLORS.lightText,
+    textAlign: 'center',
+  },
+  searchSuggestionsContainer: {
+    position: 'absolute',
+    top: '100%',
+    left: 16,
+    right: 16,
+    backgroundColor: THEME_COLORS.card,
+    borderRadius: 12,
+    marginTop: 4,
+    maxHeight: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  suggestionsScroll: {
+    maxHeight: 400,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  suggestionIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: `${THEME_COLORS.primary}15`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  suggestionContent: {
+    flex: 1,
+    marginRight: 8,
+  },
+  suggestionTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: THEME_COLORS.text,
+    marginBottom: 2,
+  },
+  suggestionCategory: {
+    fontSize: 14,
+    color: THEME_COLORS.lightText,
+    marginBottom: 2,
+  },
+  suggestionDeadline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  loadingContainer: {
+    padding: 16,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: THEME_COLORS.lightText,
   },
 });

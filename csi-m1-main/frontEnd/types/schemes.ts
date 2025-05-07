@@ -1,5 +1,21 @@
 import schemesData from './../data/schemesData.json';
-import type { SchemeCategory, Scheme } from '@/types/schemes';
+
+// Define interfaces locally to avoid circular imports
+export interface SchemeCategory {
+  id: string;
+  title: string;
+  icon: string;
+}
+
+export interface Scheme {
+  id: string;
+  name: string;
+  description: string;
+  eligibility?: string;
+  applicationUrl?: string;
+  category?: string;
+  // Add any other properties needed
+}
 
 const ITEMS_PER_PAGE = 10;
 

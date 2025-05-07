@@ -34,10 +34,7 @@ interface ValidationResult {
   documentType: string;
   extractedData: Record<string, any>;
   errors?: string[];
-}
-
-interface DocumentValidationService {
-  validateDocument: (file: File, type: string) => Promise<ValidationResult>;
+  documentId?: string;
 }
 
 // Add validation service
@@ -335,6 +332,7 @@ const DOCUMENT_PATTERNS = {
 
 const detectDocumentType = async (file: File): Promise<string> => {
   // Implementation for document type detection
+  return 'identity'; // Default return value
 };
 
 interface SchemeVideo {
@@ -539,7 +537,7 @@ export default function DocumentsScreen() {
       }
 
       // Light filtering to ensure relevance
-      const filteredArticles = data.articles.filter(article => {
+      const filteredArticles = data.articles.filter((article: NewsArticle) => {
         const content = (article.title + ' ' + (article.description || '')).toLowerCase();
         return content.includes('scheme') || 
                content.includes('yojana') || 
@@ -792,7 +790,7 @@ export default function DocumentsScreen() {
                 color={activeSection === 'documents' ? THEME_COLORS.primary : '#666'} 
               />
               <Text style={[styles.sectionText, activeSection === 'documents' && styles.activeSectionText]}>
-                DigiLocker
+                SahayakLocker
               </Text>
             </Pressable>
             <Pressable
@@ -1009,9 +1007,9 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderRadius: 20,
     padding: 20,
+    width: '90%',
     maxHeight: '80%',
   },
   modalHeader: {
@@ -1311,65 +1309,69 @@ const styles = StyleSheet.create({
     color: '#333',
     height: 41,
   },
-  filtersContainer: {
-    padding: 16,
-    gap: 16,
-  },
-  toggleContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    padding: 4,
-    borderRadius: 12,
-    gap: 8,
-  },
-  toggleButton: {
-    flexDirection: 'row',
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
     alignItems: 'center',
-    padding: 8,
-    borderRadius: 8,
+  },
+  documentPreview: {
+    width: '100%',
+    height: 200,
+    marginVertical: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  documentImage: {
+    width: '100%',
+    height: '100%',
+  },
+  noPreview: {
     flex: 1,
     justifyContent: 'center',
-    gap: 4,
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
   },
-  activeToggle: {
-    backgroundColor: THEME_COLORS.primary,
+  noPreviewText: {
+    marginTop: 8,
+    color: '#666',
+    fontSize: 14,
   },
-  toggleText: {
+  documentDetails: {
+    marginTop: 16,
+  },
+  detailLabel: {
     fontSize: 14,
     color: '#666',
-    fontWeight: '500',
+    marginBottom: 4,
   },
-  activeToggleText: {
+  detailText: {
+    fontSize: 16,
+    color: '#333',
+    marginBottom: 12,
+  },
+  validationOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    padding: 12,
+  },
+  confidenceScore: {
     color: '#fff',
-  },
-  categoriesContainer: {
-    flexGrow: 0,
-  },
-  categoryChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#fff',
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: '#eee',
-  },
-  activeCategoryChip: {
-    backgroundColor: THEME_COLORS.primary,
-    borderColor: THEME_COLORS.primary,
-  },
-  categoryText: {
     fontSize: 14,
-    color: '#666',
+    marginBottom: 8,
   },
-  activeCategoryText: {
-    color: '#fff',
+  extractedData: {
+    marginTop: 8,
   },
-  videoGrid: {
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
+  errors: {
+    marginTop: 8,
   },
-  videoList: {
-    padding: 8,
+  error: {
+    color: '#ff4444',
+    fontSize: 14,
+    marginBottom: 4,
   },
 }); 

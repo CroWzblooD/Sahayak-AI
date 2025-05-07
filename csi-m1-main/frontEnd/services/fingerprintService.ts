@@ -17,9 +17,7 @@ export class FingerprintService {
       const processed = await ImageManipulator.manipulateAsync(
         image,
         [
-          { resize: { width: 500 } },
-          { contrast: 1.2 },
-          { brightness: -0.2 }
+          { resize: { width: 500 } }
         ],
         { compress: 0.7, format: ImageManipulator.SaveFormat.PNG }
       );
@@ -50,9 +48,7 @@ export class FingerprintService {
       const processed = await ImageManipulator.manipulateAsync(
         image,
         [
-          { resize: { width: 500 } },
-          { contrast: 1.2 },
-          { brightness: -0.2 }
+          { resize: { width: 500 } }
         ],
         { compress: 0.7, format: ImageManipulator.SaveFormat.PNG }
       );

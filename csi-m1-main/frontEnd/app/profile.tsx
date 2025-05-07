@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, Dimensions, Modal, Switch } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, Pressable, Dimensions, Modal, Switch, ActivityIndicator } from 'react-native';
 import { Text } from 'tamagui';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { THEME_COLORS } from '@/constants/Colors';
 import { useAuth } from '@/context/AuthContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
@@ -119,34 +120,92 @@ const SettingsModal = ({ visible, onClose }: { visible: boolean, onClose: () => 
 };
 
 export default function ProfileScreen() {
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const [showSettings, setShowSettings] = useState(false);
+  const [profileData, setProfileData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Hardcoded data for now
-  const profileData = {
-    personal: {
-      name: "Ashish K Choudhary",
-      age: "28",
-      occupation: "Software Engineer",
-      education: "B.Tech in Computer Science",
-      email: "ashishkchoudhary@gmail.com",
-      disability: "No",
-      disabilityType: "None"
-    },
-    financial: {
-      monthlyIncome: "₹75,000",
-      category: "General",
-    },
-    location: {
-      state: "Delhi",
-      city: "New Delhi",
-    },
-    stats: {
-      appliedSchemes: "12",
-      eligibleSchemes: "45",
-      savedSchemes: "8",
-    }
-  };
+  // Load user data from AsyncStorage on component mount
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        setLoading(true);
+        // Get onboarding responses
+        const onboardingData = await AsyncStorage.getItem('onboardingResponses');
+        const parsedOnboarding = onboardingData ? JSON.parse(onboardingData) : {};
+        
+        // Construct profile data from onboarding responses and auth user
+        const userData = {
+          personal: {
+            name: parsedOnboarding.fullName || user?.name || user?.email?.split('@')[0] || 'N/A',
+            age: parsedOnboarding.age || 'N/A',
+            occupation: parsedOnboarding.occupation || 'N/A',
+            education: parsedOnboarding.education || 'N/A',
+            email: user?.email || 'N/A',
+            disability: parsedOnboarding.disability || 'No',
+            disabilityType: parsedOnboarding.disabilityType || 'None'
+          },
+          financial: {
+            monthlyIncome: parsedOnboarding.monthlyIncome ? 
+              `₹${parsedOnboarding.monthlyIncome}` : 'N/A',
+            category: parsedOnboarding.caste || 'N/A',
+          },
+          location: {
+            state: parsedOnboarding.location || 'N/A',
+            city: parsedOnboarding.city || 'N/A',
+          },
+          stats: {
+            appliedSchemes: await AsyncStorage.getItem('appliedSchemesCount') || '0',
+            eligibleSchemes: await AsyncStorage.getItem('eligibleSchemesCount') || '0',
+            savedSchemes: await AsyncStorage.getItem('savedSchemesCount') || '0',
+          }
+        };
+
+        setProfileData(userData);
+      } catch (error) {
+        console.error('Error loading profile data:', error);
+        // Set default values if there's an error
+        setProfileData({
+          personal: {
+            name: user?.name || user?.email?.split('@')[0] || 'N/A',
+            age: 'N/A',
+            occupation: 'N/A',
+            education: 'N/A',
+            email: user?.email || 'N/A',
+            disability: 'No',
+            disabilityType: 'None'
+          },
+          financial: {
+            monthlyIncome: 'N/A',
+            category: 'N/A',
+          },
+          location: {
+            state: 'N/A',
+            city: 'N/A',
+          },
+          stats: {
+            appliedSchemes: '0',
+            eligibleSchemes: '0',
+            savedSchemes: '0',
+          }
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUserData();
+  }, [user]);
+
+  // Add loading state UI
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={THEME_COLORS.primary} />
+        <Text style={styles.loadingText}>Loading profile...</Text>
+      </SafeAreaView>
+    );
+  }
 
   const handleEditProfile = () => {
     router.push('/edit-profile');
@@ -177,11 +236,13 @@ export default function ProfileScreen() {
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>
-                {profileData.personal.name.split(' ').map(n => n[0]).join('')}
+                {profileData?.personal?.name?.split(' ')
+                  .map((n: string) => n[0])
+                  .join('') || 'U'}
               </Text>
             </View>
-            <Text style={styles.name}>{profileData.personal.name}</Text>
-            <Text style={styles.email}>{profileData.personal.email}</Text>
+            <Text style={styles.name}>{profileData?.personal?.name}</Text>
+            <Text style={styles.email}>{profileData?.personal?.email}</Text>
           </View>
         </LinearGradient>
 
@@ -539,6 +600,17 @@ const styles = StyleSheet.create({
     marginLeft: 15,
   },
   settingValue: {
+    fontSize: 16,
+    color: '#666',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  loadingText: {
+    marginTop: 12,
     fontSize: 16,
     color: '#666',
   },

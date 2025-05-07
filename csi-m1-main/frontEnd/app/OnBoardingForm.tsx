@@ -219,7 +219,7 @@ export default function OnboardingForm() {
 
   const speakCurrentQuestion = async () => {
     try {
-      if (Speech.isSpeakingAsync()) {
+      if (await Speech.isSpeakingAsync()) {
         await Speech.stop();
       }
       
@@ -284,27 +284,7 @@ export default function OnboardingForm() {
       });
 
       const newRecording = new Audio.Recording();
-      await newRecording.prepareToRecordAsync({
-        android: {
-          extension: '.webm',
-          outputFormat: Audio.RECORDING_OPTION_ANDROID_OUTPUT_FORMAT_WEBM,
-          audioEncoder: Audio.RECORDING_OPTION_ANDROID_AUDIO_ENCODER_OPUS,
-          sampleRate: 48000,
-          numberOfChannels: 1,
-          bitRate: 256000,
-          audioEncodingBitRate: 256000,
-          audioSamplingRate: 48000,
-        },
-        ios: {
-          extension: '.webm',
-          audioQuality: Audio.RECORDING_OPTION_IOS_AUDIO_QUALITY_MAX,
-          sampleRate: 48000,
-          numberOfChannels: 1,
-          bitRate: 256000,
-          linearPCM: false,
-          audioFormat: Audio.RECORDING_OPTION_IOS_AUDIO_FORMAT_OPUS
-        },
-      });
+      await newRecording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
 
       await newRecording.startAsync();
       setRecording(newRecording);

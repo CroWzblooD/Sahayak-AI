@@ -216,7 +216,7 @@ export const DigiLockerSection = () => {
 
         const newDoc: Document = {
           id: Date.now().toString(),
-          type: docType,
+          type: docType as 'identity' | 'address' | 'income' | 'other',
           name: CATEGORIES
             .find(cat => cat.id === selectedCategory)
             ?.documents.find(doc => doc.type === docType)?.name || 'Document',
@@ -456,7 +456,7 @@ export const DigiLockerSection = () => {
               />
             </View>
             <View style={styles.bannerTextContainer}>
-              <Text style={styles.bannerTitle}>DigiLocker Integration</Text>
+              <Text style={styles.bannerTitle}>Sahayak Integration</Text>
               <Text style={styles.bannerText}>
                 Securely store and manage your important documents
               </Text>

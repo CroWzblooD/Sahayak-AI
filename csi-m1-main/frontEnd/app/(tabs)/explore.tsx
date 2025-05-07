@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useMemo, useCallback, Platform } from 'react';
-import { StyleSheet, View, Text, Pressable, Dimensions, TextInput } from 'react-native';
-import MapView, { PROVIDER_DEFAULT, PROVIDER_GOOGLE, Marker, Callout, Circle } from 'react-native-maps';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { StyleSheet, View, Text, Pressable, Dimensions, TextInput, Platform } from 'react-native';
+import MapView, { PROVIDER_DEFAULT, PROVIDER_GOOGLE, Marker, Callout, Circle, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { THEME_COLORS } from '@/constants/Colors';
@@ -78,6 +78,11 @@ const CustomMarkerIcons = {
     icon: 'hospital',
     color: '#E91E63',
     label: 'Hospital'
+  },
+  PostOffice: {
+    icon: 'envelope',
+    color: '#FF9800',
+    label: 'Post Office'
   }
 };
 
@@ -143,6 +148,23 @@ const DELHI_BOUNDARY = {
 const NEARBY_RADIUS = 5000; 
 
 // Add this helper function to check if a location is nearby
+const calculateDistance = (
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number => {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c; // Distance in km
+};
+
 const isNearby = (lat1: number, lon1: number, lat2: number, lon2: number, radius: number): boolean => {
   const distance = calculateDistance(lat1, lon1, lat2, lon2);
   return distance <= radius;
@@ -196,7 +218,7 @@ const PlaceCallout = ({ place, onDirectionsPress }: {
 );
 
 // Add mock CSC data
-const mockCSCData = [
+const mockCSCData: Place[] = [
   {
     id: 'csc-1',
     name: 'Jan Seva Kendra - Bakkarwala',
@@ -266,29 +288,29 @@ function ExploreScreen() {
 
       const searchTypes = [
         {
-          type: 'Bank',
+          type: 'Bank' as const,
           keywords: 'bank',
           googleTypes: 'bank'
         },
         {
-          type: 'Hospital',
+          type: 'Hospital' as const,
           keywords: 'hospital',
           googleTypes: 'hospital'
         },
         {
-          type: 'Government',
+          type: 'Government' as const,
           keywords: 'government|sarkari|municipal|tehsil|SDM office|district office',
           googleTypes: 'local_government_office|city_hall|courthouse|post_office',
           extraSearch: true // Flag for additional search
         },
         {
-          type: 'CSC',
+          type: 'CSC' as const,
           keywords: 'jan seva kendra|common service centre|CSC|e seva|citizen service|digital seva',
           googleTypes: 'local_government_office|point_of_interest|store',
           extraSearch: true // Flag for additional search
         },
         {
-          type: 'NGO',
+          type: 'NGO' as const,
           keywords: 'ngo|social welfare|foundation',
           googleTypes: 'point_of_interest'
         }
@@ -337,7 +359,7 @@ function ExploreScreen() {
           }
 
           const filteredPlaces = places
-            .map(place => {
+            .map((place: any) => {
               const distance = calculateDistance(
                 latitude,
                 longitude,
@@ -348,7 +370,7 @@ function ExploreScreen() {
               return {
                 id: place.place_id,
                 name: place.name,
-                type: searchType.type as Place['type'],
+                type: searchType.type,
                 address: place.vicinity || place.formatted_address || 'Address not available',
                 distance: distance,
                 schemes: getSchemesByType(searchType.type),
@@ -362,7 +384,7 @@ function ExploreScreen() {
                 isOpen: place.opening_hours?.open_now || false
               };
             })
-            .filter(place => place.distance <= 5); // Filter within 5km
+            .filter((place: {distance: number}) => place.distance <= 5); // Filter within 5km
 
           if (searchType.type === 'CSC') {
             // Add mock CSC data
@@ -472,23 +494,6 @@ function ExploreScreen() {
       health: 'Hospital'
     };
     return typeMap[googleType] || 'Government';
-  };
-
-  const calculateDistance = (
-    lat1: number,
-    lon1: number,
-    lat2: number,
-    lon2: number
-  ): number => {
-    const R = 6371; // Earth's radius in km
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-      Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c; // Distance in km
   };
 
   useEffect(() => {
@@ -669,7 +674,7 @@ function ExploreScreen() {
               ))}
 
               {directionsVisible && selectedRoute && (
-                <MapView.Polyline
+                <Polyline
                   coordinates={decodePolyline(selectedRoute)}
                   strokeWidth={4}
                   strokeColor={THEME_COLORS.primary}
@@ -1013,21 +1018,11 @@ const styles = StyleSheet.create({
   calloutContent: {
     alignItems: 'center',
   },
-  calloutTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  calloutType: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 2,
-  },
   calloutDistance: {
     fontSize: 12,
     color: THEME_COLORS.primary,
     fontWeight: '500',
-  },
+  }
 });
 
 export default ExploreScreen;

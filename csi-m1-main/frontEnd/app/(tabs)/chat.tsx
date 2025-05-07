@@ -15,7 +15,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import { aiService, SUPPORTED_LANGUAGES } from '@/services/aiService';
+import { aiService } from '@/services/aiService';
 import * as Speech from 'expo-speech';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { voiceAIService } from '@/services/voiceAIService';
@@ -39,7 +39,16 @@ type Message = {
   timestamp: Date;
 };
 
-const SUGGESTIONS = {
+type SupportedLanguage = 'en' | 'hi';
+
+// Define a more specific type for selectedLanguage to avoid type mismatches
+type LanguageOption = {
+  code: SupportedLanguage;
+  name: string;
+};
+
+// Explicitly cast the suggestions object keys
+const SUGGESTIONS: Record<SupportedLanguage, string[]> = {
   en: [
     "What schemes are available for farmers?",
     "Tell me about PM Kisan Yojana",
@@ -53,31 +62,11 @@ const SUGGESTIONS = {
     "छात्रों के लिए शिक्षा छात्रवृत्ति",
     "वरिष्ठ नागरिकों के लिए स्वास्थ्य लाभ",
     "महिला सशक्तिकरण योजनाएं"
-  ],
-  // Add more languages as needed
+  ]
 };
 
-// Add this for voice recording
-const RECORDING_OPTIONS = {
-  android: {
-    extension: '.m4a',
-    outputFormat: Audio.RECORDING_OPTION_ANDROID_OUTPUT_FORMAT_DEFAULT,
-    audioEncoder: Audio.RECORDING_OPTION_ANDROID_AUDIO_ENCODER_DEFAULT,
-    sampleRate: 44100,
-    numberOfChannels: 2,
-    bitRate: 128000,
-  },
-  ios: {
-    extension: '.m4a',
-    audioQuality: Audio.RECORDING_OPTION_IOS_AUDIO_QUALITY_HIGH,
-    sampleRate: 44100,
-    numberOfChannels: 2,
-    bitRate: 128000,
-    linearPCMBitDepth: 16,
-    linearPCMIsBigEndian: false,
-    linearPCMIsFloat: false,
-  },
-};
+// Replace the RECORDING_OPTIONS with the preset
+const RECORDING_OPTIONS = Audio.RecordingOptionsPresets.HIGH_QUALITY;
 
 // First, initialize Gemini with proper error handling
 const genAI = new GoogleGenerativeAI("AIzaSyA-e3uivpNa_3xqh8-W9gyA6SdVSM_4KFw");
@@ -414,7 +403,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     borderRadius: 8,
   },
+  voiceInputContainer: {
+    padding: 16,
+  },
+  languageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: `${THEME_COLORS.primary}15`,
+  },
+  languageButtonText: {
+    marginLeft: 4,
+    color: THEME_COLORS.primary,
+    fontSize: 14,
+    fontWeight: '500',
+  },
 });
+
+// Define type for SUPPORTED_LANGUAGES and add proper type casting
+const SUPPORTED_LANGUAGES: LanguageOption[] = [
+  { code: 'en' as SupportedLanguage, name: 'English' },
+  { code: 'hi' as SupportedLanguage, name: 'Hindi' }
+];
 
 export default function ChatScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
@@ -432,7 +443,7 @@ export default function ChatScreen() {
   const [inputMode, setInputMode] = useState<InputMode>('text');
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState(SUPPORTED_LANGUAGES[0]);
+  const [selectedLanguage, setSelectedLanguage] = useState<LanguageOption>(SUPPORTED_LANGUAGES[0]);
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
   const [transcribedText, setTranscribedText] = useState<string>('');
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -485,8 +496,8 @@ export default function ChatScreen() {
     const initSpeech = async () => {
       try {
         await Speech.stop();
-        // Remove setDefaultLanguage as it's not available
-        await Speech.speak('', { language: selectedLanguage.code }); // Initialize with empty text
+        // Use as SupportedLanguage to ensure type safety
+        await Speech.speak('', { language: selectedLanguage.code });
       } catch (error) {
         console.error('Speech initialization error:', error);
       }
@@ -522,7 +533,7 @@ export default function ChatScreen() {
     setIsLoading(true);
     
     try {
-      const response = await aiService.getTextResponse(userMessage, selectedLanguage.code);
+      const response = await aiService.getTextResponse(userMessage, selectedLanguage.code as SupportedLanguage);
       if (response) {
         addMessage(response, false, 'text');
       } else {
@@ -559,25 +570,7 @@ export default function ChatScreen() {
   const startRecording = async () => {
     try {
       const newRecording = new Audio.Recording();
-      await newRecording.prepareToRecordAsync({
-        android: {
-          extension: '.webm',
-          outputFormat: Audio.RECORDING_OPTION_ANDROID_OUTPUT_FORMAT_WEBM,
-          audioEncoder: Audio.RECORDING_OPTION_ANDROID_AUDIO_ENCODER_OPUS,
-          sampleRate: 48000,
-          numberOfChannels: 1,
-          bitRate: 128000,
-        },
-        ios: {
-          extension: '.webm',
-          audioQuality: Audio.RECORDING_OPTION_IOS_AUDIO_QUALITY_MAX,
-          sampleRate: 48000,
-          numberOfChannels: 1,
-          bitRate: 128000,
-          linearPCM: false,
-          audioFormat: Audio.RECORDING_OPTION_IOS_AUDIO_FORMAT_OPUS
-        },
-      });
+      await newRecording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
 
       await newRecording.startAsync();
       setRecording(newRecording);
@@ -689,41 +682,34 @@ export default function ChatScreen() {
 
   const handleImageUpload = async () => {
     try {
-      // Request permissions first
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         alert('Sorry, we need camera roll permissions to upload images.');
         return;
       }
 
-      // Launch image picker with updated options
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         quality: 1,
-        base64: true, // Get base64 data for API processing
+        base64: true,
       });
 
       if (!result.canceled && result.assets && result.assets[0]) {
         const selectedAsset = result.assets[0];
-        
-        // Show loading state
         setIsLoading(true);
         addMessage("Processing your image...", false, 'text');
 
         try {
-          // Create FormData for image upload
           const formData = new FormData();
           formData.append('image', {
             uri: selectedAsset.uri,
             type: 'image/jpeg',
             name: 'upload.jpg'
-          });
+          } as any);
 
-          // Process the image
           const response = await aiService.processDocument(selectedAsset.uri);
           
-          // Add the response to chat
           if (response) {
             addMessage(response, false, 'text');
           } else {
@@ -804,7 +790,7 @@ export default function ChatScreen() {
       showsHorizontalScrollIndicator={false}
       style={styles.suggestionsContainer}
       contentContainerStyle={styles.suggestionsContent}>
-      {SUGGESTIONS[selectedLanguage.code as keyof typeof SUGGESTIONS]?.map((suggestion, index) => (
+      {SUGGESTIONS[selectedLanguage.code].map((suggestion, index) => (
         <Pressable
           key={index}
           style={styles.suggestionChip}
