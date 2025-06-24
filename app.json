@@ -1,22 +1,48 @@
 {
   "expo": {
     "name": "Sahayak-AI",
-    "slug": "Sahayak-AI",
+    "slug": "sahayak-ai",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "sahayakai",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sahayak.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Sahayak needs your location to show nearby government centers",
+        "NSMicrophoneUsageDescription": "Allow Sahayak to access your microphone for voice interactions",
+        "NSPhotoLibraryUsageDescription": "Allow Sahayak to access your photos to upload documents",
+        "UIBackgroundModes": ["location"]
+      },
+      "config": {
+        "googleMapsApiKey": "AIzaSyCctB7XAC_6yKjVWFfVaSNW1qytfDkHt3A"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.sahayak.app",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION", 
+        "ACCESS_FINE_LOCATION",
+        "RECORD_AUDIO",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCctB7XAC_6yKjVWFfVaSNW1qytfDkHt3A"
+        }
+      }
     },
     "web": {
       "bundler": "metro",
@@ -33,10 +59,33 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Sahayak to use your location to show nearby government centers"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Sahayak to access your photos to upload documents"
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow Sahayak to access your microphone for voice conversations"
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "3806e291-dd7a-4d0f-84c7-52c88f82c188"
+      }
     }
   }
 }

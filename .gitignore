@@ -21,6 +21,7 @@ expo-env.d.ts
 # Metro
 .metro-health-check*
 
+
 # debug
 npm-debug.*
 yarn-debug.*
@@ -37,3 +38,9 @@ yarn-error.*
 *.tsbuildinfo
 
 app-example
+
+# Data files
+data/
+
+# Schema files
+scheme/
