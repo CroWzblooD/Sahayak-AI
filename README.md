@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Sahayak-AI Logo](https://img.shields.io/badge/Sahayak-AI-Government%20Schemes-blue?style=for-the-badge&logo=home)
+![Sahayak-AI Logo](https://img.shields.io/badge/Sahayak-AI-Government%20Schemes-blue?style=for-the-badge&logo=spring)
 ![React Native](https://img.shields.io/badge/React%20Native-0.79+-blue?style=for-the-badge&logo=react)
 ![Expo](https://img.shields.io/badge/Expo-53+-black?style=for-the-badge&logo=expo)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8+-blue?style=for-the-badge&logo=typescript)
